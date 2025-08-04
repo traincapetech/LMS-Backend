@@ -57,7 +57,12 @@ const app = express();
 
 // Configure CORS properly
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://your-frontend-domain.com'],
+  origin: [
+    'http://localhost:5173', 
+    'http://localhost:3000', 
+    'https://cognify.traincapetech.in',
+    'https://www.cognify.traincapetech.in'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
