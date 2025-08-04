@@ -39,7 +39,7 @@ router.post('/thumbnail', upload.single('thumbnail'), (req, res) => {
   }
   
   // Return the full URL for the uploaded image
-  const imageUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+          const imageUrl = `https://lms-backend-5s5x.onrender.com/uploads/${req.file.filename}`;
   console.log('Returning image URL:', imageUrl);
   res.json({ url: imageUrl });
 });

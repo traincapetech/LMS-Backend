@@ -54,8 +54,21 @@ async function ensureAdminUser() {
 }
 
 const app = express();
-app.use(cors());
+
+// Configure CORS properly
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://your-frontend-domain.com'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+
 app.use(express.json({ limit: '5mb' }));
+
+// Handle preflight requests
+app.options('*', cors());
+
 app.use('/uploads', express.static('uploads'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
 
