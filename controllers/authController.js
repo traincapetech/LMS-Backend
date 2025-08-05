@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { sendOtpEmail } = require('../utils/emailService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
@@ -79,8 +80,14 @@ exports.forgotPassword = async (req, res) => {
     user.resetOtp = otp;
     user.resetOtpExpires = Date.now() + 10 * 60 * 1000; // 10 min expiry
     await user.save();
-    // Simulate sending email
-    console.log(`📧 Password reset OTP sent to ${email}: ${otp}`);
+    
+    // Send OTP via email
+    const emailSent = await sendOtpEmail(email, otp, 'password-reset');
+    
+    if (!emailSent) {
+      return res.status(500).json({ message: 'Failed to send OTP email. Please try again.' });
+    }
+    
     return res.status(200).json({ message: 'OTP sent to your email.' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error.' });

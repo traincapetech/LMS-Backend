@@ -1,6 +1,7 @@
 const Instructor = require("../models/Instructor");
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
+const { sendOtpEmail } = require("../utils/emailService");
 
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -15,8 +16,12 @@ const sendOtp = async (req, res) => {
   try {
     const otp = generateOtp();
 
-    // Simulate sending email
-    console.log(`📧 OTP sent to ${email}: ${otp}`);
+    // Send OTP via email
+    const emailSent = await sendOtpEmail(email, otp, 'verification');
+    
+    if (!emailSent) {
+      return res.status(500).json({ message: "Failed to send OTP email. Please try again." });
+    }
 
     const instructor = await Instructor.findOneAndUpdate(
       { email },
@@ -24,7 +29,7 @@ const sendOtp = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    return res.status(200).json({ message: "OTP sent successfully", otp });
+    return res.status(200).json({ message: "OTP sent successfully to your email" });
   } catch (error) {
     console.error("❌ Error sending OTP:", error.message);
     return res.status(500).json({ message: "Server error" });
