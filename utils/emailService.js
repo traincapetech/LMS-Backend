@@ -1,11 +1,11 @@
 const nodemailer = require('nodemailer');
 
 // Create transporter
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER || 'your-email@gmail.com',
-    pass: process.env.EMAIL_PASSWORD || 'your-app-password'
+    user: process.env.EMAIL_USER || 'sales@traincapetech.in',
+    pass: process.env.EMAIL_PASSWORD || 'Canada@1212'
   }
 });
 
@@ -52,7 +52,7 @@ const sendOtpEmail = async (email, otp, purpose = 'verification') => {
     `;
 
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'your-email@gmail.com',
+       from: process.env.EMAIL_USER || 'sales@traincapetech.in',
       to: email,
       subject: subject,
       html: htmlContent
