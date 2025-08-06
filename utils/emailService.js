@@ -1,17 +1,46 @@
 const nodemailer = require('nodemailer');
 
-// Create transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER || 'sales@traincapetech.in',
-    pass: process.env.EMAIL_PASSWORD || 'Canada@1212'
+// Create transporter with Hostinger SMTP configuration
+const createTransporter = () => {
+  // Check if we have OAuth2 credentials (for Gmail fallback)
+  if (process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: process.env.EMAIL_USER || 'sales@traincapetech.in',
+        clientId: process.env.GMAIL_CLIENT_ID,
+        clientSecret: process.env.GMAIL_CLIENT_SECRET,
+        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+        accessToken: process.env.GMAIL_ACCESS_TOKEN
+      }
+    });
   }
-});
+  
+  // Hostinger SMTP configuration
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.hostinger.com',
+    port: process.env.SMTP_PORT || 587,
+    secure: false, // true for 465, false for other ports
+    auth: {
+      user: process.env.EMAIL_USER || 'sales@traincapetech.in',
+      pass: process.env.EMAIL_PASSWORD || 'Canada@1212'
+    },
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
+};
 
 // Send OTP email
 const sendOtpEmail = async (email, otp, purpose = 'verification') => {
   try {
+    const transporter = createTransporter();
+    
+    // Verify transporter configuration
+    await transporter.verify();
+    console.log('✅ Email transporter verified successfully');
+    
     const subject = purpose === 'password-reset' 
       ? 'Password Reset OTP - Traincape LMS'
       : 'Email Verification OTP - Traincape LMS';
@@ -52,7 +81,7 @@ const sendOtpEmail = async (email, otp, purpose = 'verification') => {
     `;
 
     const mailOptions = {
-       from: process.env.EMAIL_USER || 'sales@traincapetech.in',
+      from: process.env.EMAIL_USER || 'sales@traincapetech.in',
       to: email,
       subject: subject,
       html: htmlContent
@@ -63,6 +92,17 @@ const sendOtpEmail = async (email, otp, purpose = 'verification') => {
     return true;
   } catch (error) {
     console.error('❌ Error sending email:', error.message);
+    
+    // Provide helpful error messages
+    if (error.code === 'EAUTH') {
+      console.error('🔐 Authentication failed. Please check your email credentials.');
+      console.error('💡 For Hostinger email setup:');
+      console.error('   1. Use your full email address as EMAIL_USER');
+      console.error('   2. Use your email password as EMAIL_PASSWORD');
+      console.error('   3. Default SMTP settings: smtp.hostinger.com:587');
+      console.error('   4. Make sure your email account is active and not suspended');
+    }
+    
     return false;
   }
 };
