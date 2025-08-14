@@ -110,11 +110,22 @@ const sendOtpEmail = async (email, otp, purpose = 'verification') => {
       </div>
     `;
 
+    const fromName = process.env.SMTP_FROM_NAME || process.env.EMAIL_FROM_NAME || process.env.MAIL_FROM_NAME || 'Traincape LMS';
+    const fromHeader = /<.*>/.test(fromAddress) ? fromAddress : `${fromName} <${fromAddress}>`;
+
     const mailOptions = {
-      from: fromAddress,
+      from: fromHeader,
       to: email,
-      subject: subject,
-      html: htmlContent
+      subject,
+      text: `Your ${purpose === 'password-reset' ? 'password reset' : 'verification'} OTP is ${otp}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
+      html: htmlContent,
+      envelope: {
+        from: fromAddress,
+        to: email,
+      },
+      headers: {
+        'X-Entity-Ref-ID': String(Date.now()),
+      },
     };
 
     const result = await transporter.sendMail(mailOptions);
