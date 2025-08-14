@@ -85,6 +85,11 @@ exports.forgotPassword = async (req, res) => {
     const emailSent = await sendOtpEmail(email, otp, 'password-reset');
     
     if (!emailSent) {
+      // Development fallback: allow testing without email credentials
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔧 DEV MODE: Password reset OTP for', email, 'is', otp);
+        return res.status(200).json({ message: 'OTP sent (dev mode). Check server logs for the code.' });
+      }
       return res.status(500).json({ message: 'Failed to send OTP email. Please try again.' });
     }
     
