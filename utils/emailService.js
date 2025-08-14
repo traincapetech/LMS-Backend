@@ -16,6 +16,7 @@ const createTransporter = () => {
     const secure = String(secureStr || '').toLowerCase() === 'true' || port === 465;
     const rejectUnauthorized = String(rejectUnauthorizedStr || 'true').toLowerCase() === 'true';
     console.log(`📨 Using SMTP transporter: host=${host}, port=${port}, secure=${secure}`);
+    console.log('📨 SMTP auth user:', user);
     return nodemailer.createTransport({
       host,
       port,
@@ -128,6 +129,7 @@ const sendOtpEmail = async (email, otp, purpose = 'verification') => {
       },
     };
 
+    console.log('📨 Sending email with options:', { to: mailOptions.to, from: mailOptions.from, subject });
     const result = await transporter.sendMail(mailOptions);
     console.log(`✅ Email sent successfully to ${email}`);
     console.log(`📧 Message ID: ${result.messageId}`);
