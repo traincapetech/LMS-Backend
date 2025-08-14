@@ -1,4 +1,5 @@
 const Course = require('../models/Course');
+const PendingCourse = require('../models/PendingCourse');
 
 exports.publish = async (req, res) => {
   try {
@@ -46,5 +47,101 @@ exports.getById = async (req, res) => {
     res.json(course);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch course', error: err.message });
+  }
+};
+
+// Save dashboard data
+exports.saveDashboardData = async (req, res) => {
+  try {
+    const { step, data } = req.body;
+    const instructorId = req.user._id;
+
+    // Check if there's already a pending course for this instructor
+    let pendingCourse = await PendingCourse.findOne({
+      instructor: instructorId,
+      status: { $in: ['pending', 'approved'] }
+    });
+
+    if (!pendingCourse) {
+      // Create new pending course
+      pendingCourse = new PendingCourse({
+        instructor: {
+          _id: instructorId,
+          name: req.user.name,
+          email: req.user.email
+        },
+        status: 'pending'
+      });
+    }
+
+    // Update the specific step data
+    pendingCourse[step] = data;
+    await pendingCourse.save();
+
+    res.json({
+      message: 'Dashboard data saved successfully',
+      pendingCourseId: pendingCourse._id,
+      step
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to save dashboard data', error: err.message });
+  }
+};
+
+// Get dashboard data
+exports.getDashboardData = async (req, res) => {
+  try {
+    const instructorId = req.user._id;
+
+    const pendingCourse = await PendingCourse.findOne({
+      instructor: instructorId,
+      status: { $in: ['pending', 'approved'] }
+    });
+
+    if (!pendingCourse) {
+      return res.json({ data: null });
+    }
+
+    res.json({ data: pendingCourse });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch dashboard data', error: err.message });
+  }
+};
+
+// Update specific dashboard step
+exports.updateDashboardStep = async (req, res) => {
+  try {
+    const { step } = req.params;
+    const { data } = req.body;
+    const instructorId = req.user._id;
+
+    let pendingCourse = await PendingCourse.findOne({
+      instructor: instructorId,
+      status: { $in: ['pending', 'approved'] }
+    });
+
+    if (!pendingCourse) {
+      // Create new pending course
+      pendingCourse = new PendingCourse({
+        instructor: {
+          _id: instructorId,
+          name: req.user.name,
+          email: req.user.email
+        },
+        status: 'pending'
+      });
+    }
+
+    // Update the specific step data
+    pendingCourse[step] = data;
+    await pendingCourse.save();
+
+    res.json({
+      message: 'Step data updated successfully',
+      pendingCourseId: pendingCourse._id,
+      step
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update step data', error: err.message });
   }
 }; 

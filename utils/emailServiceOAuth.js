@@ -1,46 +1,41 @@
 const nodemailer = require('nodemailer');
 
-// Create transporter with better error handling
+// Create transporter with OAuth2 (more secure)
 const createTransporter = () => {
-  // Check if we have the required environment variables
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-    console.error('❌ Email configuration missing: EMAIL_USER and EMAIL_PASSWORD required');
-    return null;
-  }
+  return nodemailer.createTransporter({
+    service: 'gmail',
+    auth: {
+      type: 'OAuth2',
+      user: process.env.EMAIL_USER,
+      clientId: process.env.GMAIL_CLIENT_ID,
+      clientSecret: process.env.GMAIL_CLIENT_SECRET,
+      refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+      accessToken: process.env.GMAIL_ACCESS_TOKEN,
+    },
+  });
+};
 
-  return nodemailer.createTransport({
+// Fallback to regular SMTP if OAuth2 not configured
+const createFallbackTransporter = () => {
+  return nodemailer.createTransporter({
     service: 'gmail',
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD,
     },
-    // Add timeout and connection settings
-    connectionTimeout: 60000,
-    greetingTimeout: 30000,
-    socketTimeout: 60000,
   });
 };
 
-// Send OTP email with better error handling
+// Send OTP email
 const sendOtpEmail = async (email, otp, purpose = 'verification') => {
   try {
-    console.log(`📧 Attempting to send OTP to: ${email}`);
-    console.log(`🔧 Using email service: ${process.env.EMAIL_USER}`);
+    let transporter;
     
-    const transporter = createTransporter();
-    
-    if (!transporter) {
-      console.error('❌ Email transporter not created - check environment variables');
-      return false;
-    }
-
-    // Verify connection first
-    try {
-      await transporter.verify();
-      console.log('✅ Email connection verified successfully');
-    } catch (verifyError) {
-      console.error('❌ Email connection verification failed:', verifyError.message);
-      return false;
+    // Try OAuth2 first, fallback to regular SMTP
+    if (process.env.GMAIL_CLIENT_ID) {
+      transporter = createTransporter();
+    } else {
+      transporter = createFallbackTransporter();
     }
 
     const subject = purpose === 'password-reset' 
@@ -90,29 +85,10 @@ const sendOtpEmail = async (email, otp, purpose = 'verification') => {
     };
 
     const result = await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent successfully to ${email}`);
-    console.log(`📧 Message ID: ${result.messageId}`);
+    console.log(`📧 Email sent successfully to ${email}`);
     return true;
   } catch (error) {
     console.error('❌ Error sending email:', error.message);
-    
-    // Provide specific troubleshooting based on error type
-    if (error.message.includes('Invalid login')) {
-      console.log('\n🔧 Gmail Authentication Fix:');
-      console.log('1. Enable 2-Step Verification: https://myaccount.google.com/security');
-      console.log('2. Generate App Password: https://myaccount.google.com/apppasswords');
-      console.log('3. Use the 16-character App Password (not regular password)');
-      console.log('4. Make sure EMAIL_USER is your full Gmail address');
-    } else if (error.message.includes('ECONNECTION')) {
-      console.log('\n🔧 Network Connection Issue:');
-      console.log('1. Check your internet connection');
-      console.log('2. Try again in a few minutes');
-    } else if (error.message.includes('ENOTFOUND')) {
-      console.log('\n🔧 DNS Resolution Issue:');
-      console.log('1. Check your internet connection');
-      console.log('2. Try again later');
-    }
-    
     return false;
   }
 };
