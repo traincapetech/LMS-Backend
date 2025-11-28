@@ -1,3 +1,4 @@
+// models/PendingCourse.js
 const mongoose = require('mongoose');
 
 const DocumentSchema = new mongoose.Schema({
@@ -7,32 +8,31 @@ const DocumentSchema = new mongoose.Schema({
 
 const ItemSchema = new mongoose.Schema({
   _id: { type: mongoose.Schema.Types.ObjectId, default: () => new mongoose.Types.ObjectId() },
-  type: String,
+  type: { type: String, required: true },           // "lecture" | "quiz" | "document"
   title: String,
-  videoUrl: String,
-  documents: [],
+  // now we store reference to video document (Option A)
+  videoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Video', default: null },
+  documents: [DocumentSchema],
   quizId: { type: mongoose.Schema.Types.ObjectId, default: null }
-});
+}, { _id: false });
 
 const SectionSchema = new mongoose.Schema({
   _id: { type: mongoose.Schema.Types.ObjectId, default: () => new mongoose.Types.ObjectId() },
-  title: String, // 👈 renamed from sectionTitle
+  title: String,
   items: [ItemSchema]
-});
+}, { _id: false });
 
 const pendingCourseSchema = new mongoose.Schema({
   learningObjectives: [String],
   requirements: [String],
   courseFor: String,
   structure: String,
-
   testVideo: { type: String, default: "" },
   thumbnailUrl: String,
   filmEdit: { type: String, default: "" },
   sampleVideo: { type: String, default: "" },
   captions: { type: String, default: "" },
   accessibility: { type: String, default: "" },
-
   landingTitle: String,
   landingSubtitle: String,
   landingDesc: String,
@@ -41,22 +41,14 @@ const pendingCourseSchema = new mongoose.Schema({
   promoDesc: String,
   welcomeMsg: String,
   congratsMsg: String,
-
   curriculum: [SectionSchema],
-
-  instructor: { type: mongoose.Schema.Types.Mixed, required: true },
-
+  instructor: { type:  mongoose.Schema.Types.ObjectId , ref: "User", required: true },
   status: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
-
-  isNew: {                         // this add to check the course it new or going to edit
-    type: Boolean, 
-    default: true 
-  },
-
+  isNew: { type: Boolean, default: true },
   adminMessage: String
 }, { timestamps: true });
 

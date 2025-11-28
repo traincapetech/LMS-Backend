@@ -77,7 +77,7 @@ app.use(express.json({ limit: '5mb' }));
 app.options('*', cors());
 
 app.use('/uploads', express.static('uploads'));
-app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/upload', requireAuth,requireInstructor,require('./routes/uploadRoutes'));
 
 // Routes
 app.use("/api", require("./routes/otpRoutes"));
@@ -88,8 +88,6 @@ app.use("/api/courses", require("./routes/courseRoutes"));
 app.use("/api/pending-courses", require("./routes/pendingCourseRoutes"));
 app.use("/api/cart", require("./routes/cartRoutes"));
 app.use("/api/coupons", require("./routes/couponRoutes"));
-app.use("/api/videos", requireAuth,requireInstructor,require('./routes/uploadVideoRoutes'));
-app.use("/api/document",requireAuth,requireInstructor, require('./routes/documentRoutes'));
 app.use("/api/quizzes/:quizId/questions", require('./routes/quizQuestion&Option'));
 app.use("/api/quizzes/:quizId/results", require('./routes/quizResultRoute'));
 app.use("/api/quizzes", require('./routes/quizRoute'));

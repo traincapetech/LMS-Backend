@@ -4,8 +4,10 @@ const pendingCourseController = require('../controllers/pendingCourseController'
 const requireAuth = require('../utils/requireAuth');
 const requireInstructor = require('../utils/requireInstructor');
 
+const multer = require('multer');
+const uploadAny = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024*1024*1024 } }).any();
 // POST /api/pending-courses/apply
-router.post('/apply', pendingCourseController.apply);
+router.post('/apply', requireAuth, requireInstructor, pendingCourseController.apply);
 
 // GET /api/pending-courses/
 router.get('/', pendingCourseController.getAll);
@@ -13,14 +15,11 @@ router.get('/', pendingCourseController.getAll);
 // GET /api/pending-course/my-courses
 router.get('/my-courses', requireAuth, requireInstructor, pendingCourseController.getMyCourses);
 
-// GET /api/pending-courses/:id
-router.get('/:id', pendingCourseController.getById);
+//PUT /api/pending-courses/update/:id
+router.put(  "/update/:id",  requireAuth,  requireInstructor,  uploadAny,  pendingCourseController.editCourse);
 
 // POST /api/pending-course/create
 router.post("/create", requireAuth, requireInstructor, pendingCourseController.createPendingCourse);
-
-//PUT /api/pending-courses/update/:id
-router.put("/update/:id",requireAuth, requireInstructor, pendingCourseController.editCourse)
 
 // PUT /api/pending-courses/:id/approve
 router.put('/:id/approve', pendingCourseController.approve);
@@ -28,6 +27,11 @@ router.put('/:id/approve', pendingCourseController.approve);
 // PUT /api/pending-courses/:id/reject
 router.put('/:id/reject', pendingCourseController.reject);
 
+//Delete /api/pending-courses/delete/:id
+router.delete('/delete/:id', requireAuth, requireInstructor ,pendingCourseController.deletePendingCourse);
 
+
+// GET /api/pending-courses/:id
+router.get('/:id', pendingCourseController.getById);
 
 module.exports = router; 

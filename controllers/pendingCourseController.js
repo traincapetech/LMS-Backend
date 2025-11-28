@@ -1,53 +1,24 @@
 const PendingCourse = require('../models/PendingCourse');
 const Course = require('../models/Course');
-
-const mongoose = require("mongoose");
+const Video = require('../models/Video');
 
 // POST /api/pending-courses/apply
-exports.apply = async (req, res) => {
-  try {
-    const instructorId = req.user.id; // logged-in instructor
-    console.log("📩 Incoming course payload:", req.body);
-    // 1️⃣ If course has pendingCourseId → UPDATE instead of create
-    if (req.body.pendingCourseId) {
-      const updatedCourse = await PendingCourse.findOneAndUpdate(
-        { _id: req.body.pendingCourseId, instructorId },
-        {
-          ...req.body,
-          updatedAt: new Date()
-        },
-        { new: true }
-      );
-      if (!updatedCourse) {
-        return res.status(404).json({
-          message: "Course not found or unauthorized",
-        });
-      }
-      return res.json({
-        message: "Course updated successfully",
-        course: updatedCourse,
-      });
-    }
-    // 2️⃣ ELSE → CREATE NEW COURSE
-    const newCourse = new PendingCourse({
-      instructorId,
-      ...req.body,
-      status: "pending",
-    });
-    await newCourse.save();
-    res.status(201).json({
-      message: "Course submitted for review",
-      course: newCourse,
-    });
-  } catch (err) {
-    console.error("🔥 PENDING COURSE ERROR:", err);
-    res.status(500).json({
-      message: "Failed to submit course for review",
-      error: err.message,
-      stack: err.stack,
-    });
-  }
-};
+// exports.apply = async (req, res) => {
+//   try {
+//     console.log("📩 Incoming course payload:", req.body);
+//     const course = new PendingCourse({ ...req.body, status: 'pending' }, { new: true });
+//     await course.save();
+//     res.status(201).json({ message: 'Course submitted for review', course });
+
+//   } catch (err) {
+//     console.error("🔥 PENDING COURSE ERROR:", err);
+//     res.status(500).json({
+//       message: 'Failed to submit course for review',
+//       error: err.message,
+//       stack: err.stack
+//     });
+//   }
+// };
 
 // GET /api/pending-courses/
 exports.getAll = async (req, res) => {
@@ -62,29 +33,44 @@ exports.getAll = async (req, res) => {
 // GET /api/pending-courses/:id
 exports.getById = async (req, res) => {
   try {
-    const course = await PendingCourse.findById(req.params.id);
-    if (!course) return res.status(404).json({ message: "Course not found" });
+    const course = await PendingCourse.findById(req.params.id).lean();
+    if (!course) return res.status(404).json({ message: 'Course not found' });
+
+    // Collect all videoIds that appear in the curriculum
+    const vids = [];
+    (course.curriculum || []).forEach(sec => {
+      (sec.items || []).forEach(it => {
+        if (it.videoId) vids.push(String(it.videoId));
+      });
+    });
+
+    // fetch video docs in one query
+    const videos = vids.length ? await Video.find({ _id: { $in: vids } }).lean() : [];
+    const videoMap = videos.reduce((acc, v) => { acc[String(v._id)] = v; return acc; }, {});
+
+    // enrich curriculum items with videoUrl (for frontend)
+    const enrichedCurriculum = (course.curriculum || []).map(sec => ({
+      id: sec._id,
+      title: sec.title,
+      items: (sec.items || []).map(it => ({
+        id: it._id,
+        type: it.type,
+        title: it.title,
+        videoId: it.videoId || null,
+        videoUrl: it.videoId ? (videoMap[String(it.videoId)]?.url || '') : '',
+        documents: it.documents || [],
+        quizId: it.quizId || null
+      }))
+    }));
 
     const formatted = {
-      ...course._doc,
-      curriculum: course.curriculum.map(sec => ({
-        id: sec._id,
-        title: sec.title || "New Section",
-        published: sec.published,
-        items: sec.items.map(it => ({
-          id: it._id,
-          type: it.type,
-          title: it.title,
-          videoUrl: it.videoUrl,
-          documents: it.documents
-        }))
-      }))
+      ...course,
+      curriculum: enrichedCurriculum
     };
 
     res.json(formatted);
-
   } catch (err) {
-    res.status(500).json({ message: "Failed to fetch course", error: err.message });
+    console.error(err); res.status(500).json({ message: 'Failed to fetch course', error: err.message });
   }
 };
 
@@ -92,14 +78,16 @@ exports.getById = async (req, res) => {
 // /api/pending-courses/my-courses
 exports.getMyCourses = async (req, res) => {
   try {
-    const instructorId = req.user.id;
+    const id = req.user._id.toString();
 
     const courses = await PendingCourse.find({
       $or: [
-        { instructor: instructorId },       // when instructor is stored as String
-        { "instructor._id": instructorId }   // when instructor is stored as Object
+        { instructor: req.user._id },        // ObjectId stored
+        { instructor: id },                  // String stored
+        { "instructor._id": req.user._id },  // Object in DB
+        { "instructor._id": id }             // Object with string _id
       ]
-    });
+    }).sort({ createdAt: -1 });
 
     res.json(courses);
 
@@ -120,64 +108,67 @@ exports.createPendingCourse = async (req, res) => {
       courseType: req.body.courseType,
       category: req.body.category,
       timeCommitment: req.body.timeCommitment,
-      instructor: req.user._id,
+      instructor: req.user._id, // store full user object or minimal
       isNew: true,
     });
-
-    res.status(201).json({
-      pendingCourseId: pending._id
-    });
+    res.status(201).json({ pendingCourseId: pending._id });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(err); res.status(500).json({ message: err.message });
   }
 };
 
-// /api/pending-course/update/:pendingCourseId
+// /api/pending-courses/update/:pendingCourseId 
 exports.editCourse = async (req, res) => {
+  console.log("🔥 UPDATE route HIT");
   try {
     const courseId = req.params.id;
-    const instructorId = req.user.id;  // ← FIXED
-
+    console.log("courseid ", courseId)
+    // Fix instructorId extraction
+    const instructorId = req.user.id || req.user._id;
+    console.log("instructor iD : ", instructorId)
+    // Parse FormData JSON body
+    let body = req.body;
+    if (req.body.data) {
+      try {
+        body = JSON.parse(req.body.data);
+      } catch (e) {
+        return res.status(400).json({ message: "Invalid JSON in form-data" });
+      }
+    }
+    console.log("i am above the pendingcourseFind one ")
+    // Correct ownership check
     const course = await PendingCourse.findOne({
-      _id: courseId,
-      $or: [
-        { instructor: instructorId },      // stored as string
-        { "instructor._id": instructorId } // stored as object
-      ]
+      _id: courseId, instructor: req.user._id,
     });
 
     if (!course) {
-      return res.status(404).json({ message: "Course not found or unauthorized" });
+      console.log("i in the condition state that !course")
+      return res.status(404).json({ message: 'Course not found or unauthorized' });
     }
 
-    Object.assign(course, req.body);
+    // Whitelist allowed fields
+    const allowed = [
+      'learningObjectives', 'requirements', 'courseFor', 'structure', 'testVideo',
+      'thumbnailUrl', 'filmEdit', 'sampleVideo', 'captions', 'accessibility',
+      'landingTitle', 'landingSubtitle', 'landingDesc', 'price', 'promoCode',
+      'promoDesc', 'welcomeMsg', 'congratsMsg', 'curriculum'
+    ];
+
+    allowed.forEach(k => {
+      if (body[k] !== undefined) {
+        course[k] = body[k];
+      }
+    });
+
     course.isNew = false;
-
-    if (req.body.curriculum) {
-      course.curriculum = req.body.curriculum.map(sec => ({
-        _id: sec.id || new mongoose.Types.ObjectId(),
-        title: sec.title,
-        published: sec.published || false,
-        items: sec.items.map(it => ({
-          _id: it.id || new mongoose.Types.ObjectId(),
-          type: it.type,
-          title: it.title,
-          videoUrl: it.videoUrl || "",
-          documents: it.documents || []
-        }))
-      }));
-    }
-
     course.updatedAt = new Date();
     await course.save();
 
-    res.json({
-      message: "Course updated successfully",
-      course
-    });
+    return res.json({ success: true, course });
 
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update course", error: error.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to update course', error: err.message });
   }
 };
 
@@ -228,6 +219,37 @@ exports.approve = async (req, res) => {
     res.status(500).json({ message: 'Failed to approve course', error: err.message });
   }
 };
+
+exports.deletePendingCourse = async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const instructorId = req.user._id;  // correct field
+
+    const course = await PendingCourse.findOne({
+      _id: courseId,
+      instructor: instructorId   // FIXED ✔
+    });
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found or unauthorized."
+      });
+    }
+
+    await PendingCourse.deleteOne({ _id: courseId });
+
+    return res.json({
+      success: true,
+      message: "Course deleted successfully."
+    });
+
+  } catch (error) {
+    console.error("Delete error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 
 // PUT /api/pending-courses/:id/reject
 exports.reject = async (req, res) => {
