@@ -7,7 +7,7 @@ const requireInstructor = require('../utils/requireInstructor');
 const multer = require('multer');
 const uploadAny = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024*1024*1024 } }).any();
 // POST /api/pending-courses/apply
-router.post('/apply', requireAuth, requireInstructor, pendingCourseController.apply);
+// router.post('/apply', requireAuth, requireInstructor, pendingCourseController.apply);
 
 // GET /api/pending-courses/
 router.get('/', pendingCourseController.getAll);
