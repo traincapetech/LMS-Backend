@@ -33,7 +33,7 @@ exports.getAll = async (req, res) => {
 // GET /api/pending-courses/:id
 exports.getById = async (req, res) => {
   try {
-    const course = await PendingCourse.findById(req.params.id).lean();
+    const course = await PendingCourse.findById(req.params.id).populate("instructor", "name email").lean();
     if (!course) return res.status(404).json({ message: 'Course not found' });
 
     // Collect all videoIds that appear in the curriculum
@@ -119,7 +119,7 @@ exports.createPendingCourse = async (req, res) => {
 
 // /api/pending-courses/update/:pendingCourseId 
 exports.editCourse = async (req, res) => {
-  console.log("🔥 UPDATE route HIT");
+ 
   try {
     const courseId = req.params.id;
     console.log("courseid ", courseId)
@@ -135,14 +135,13 @@ exports.editCourse = async (req, res) => {
         return res.status(400).json({ message: "Invalid JSON in form-data" });
       }
     }
-    console.log("i am above the pendingcourseFind one ")
+  
     // Correct ownership check
     const course = await PendingCourse.findOne({
       _id: courseId, instructor: req.user._id,
     });
 
     if (!course) {
-      console.log("i in the condition state that !course")
       return res.status(404).json({ message: 'Course not found or unauthorized' });
     }
 
@@ -174,69 +173,212 @@ exports.editCourse = async (req, res) => {
 
 
 
+// This is an old logic 
+// PUT /api/pending-courses/:id/approve
+// exports.approve = async (req, res) => {
+//   try {
+//     const course = await PendingCourse.findByIdAndUpdate(
+//       req.params.id,
+//       { status: 'approved', adminMessage: req.body.adminMessage },
+//       { new: true }
+//     );
+//     if (!course) return res.status(404).json({ message: 'Course not found' });
 
+//     // Create a published course
+//     let instructorId = undefined;
+//     if (course.instructor && course.instructor._id) {
+//       instructorId = course.instructor._id;
+//       // Update user role to instructor
+//       const User = require('../models/User');
+//       const user = await User.findById(instructorId);
+//       if (user && user.role !== 'instructor') {
+//         user.role = 'instructor';
+//         await user.save();
+//       }
+//     }
+//     const published = new Course({
+//       title: course.landingTitle,
+//       subtitle: course.landingSubtitle,
+//       description: course.landingDesc,
+//       price: isNaN(Number(course.price)) ? 0 : Number(course.price),
+//       instructor: instructorId,
+//       published: true,
+//       thumbnailUrl: course.thumbnailUrl,
+//       rating: course.rating || 0,
+//       badges: course.badges || [],
+//       learningObjectives: course.learningObjectives || [],
+//       language: course.language || 'English',
+//       learners: course.learners || 0,
+//       ratingsCount: course.ratingsCount || 0,
+//     });
+//     await published.save();
+
+//     res.json({ message: 'Course approved and published', course: published });
+//   } catch (err) {
+//     res.status(500).json({ message: 'Failed to approve course', error: err.message });
+//   }
+// };
+
+// This is the new logic
 // PUT /api/pending-courses/:id/approve
 exports.approve = async (req, res) => {
   try {
-    const course = await PendingCourse.findByIdAndUpdate(
-      req.params.id,
-      { status: 'approved', adminMessage: req.body.adminMessage },
-      { new: true }
-    );
-    if (!course) return res.status(404).json({ message: 'Course not found' });
+    const pending = await PendingCourse.findById(req.params.id)
+      .populate("instructor");
 
-    // Create a published course
-    let instructorId = undefined;
-    if (course.instructor && course.instructor._id) {
-      instructorId = course.instructor._id;
-      // Update user role to instructor
-      const User = require('../models/User');
-      const user = await User.findById(instructorId);
-      if (user && user.role !== 'instructor') {
-        user.role = 'instructor';
-        await user.save();
-      }
+    if (!pending) {
+      return res.status(404).json({ message: "Pending course not found" });
     }
-    const published = new Course({
-      title: course.landingTitle,
-      subtitle: course.landingSubtitle,
-      description: course.landingDesc,
-      price: isNaN(Number(course.price)) ? 0 : Number(course.price),
-      instructor: instructorId,
-      published: true,
-      thumbnailUrl: course.thumbnailUrl,
-      rating: course.rating || 0,
-      badges: course.badges || [],
-      learningObjectives: course.learningObjectives || [],
-      language: course.language || 'English',
-      learners: course.learners || 0,
-      ratingsCount: course.ratingsCount || 0,
-    });
-    await published.save();
 
-    res.json({ message: 'Course approved and published', course: published });
+    const instructorId = pending.instructor._id;
+
+    // PROMOTE USER IF NEEDED
+    const User = require("../models/User");
+    const user = await User.findById(instructorId);
+    if (user.role !== "instructor" && user.role !== "admin") {
+      user.role = "instructor";
+      await user.save();
+    }
+
+    // GET ALL VIDEO DOCUMENTS FOR THIS COURSE
+    const Video = require("../models/Video");
+    const videos = await Video.find({ pendingCourseId: pending._id }).lean();
+
+    const videoMap = {};
+    videos.forEach(v => { videoMap[String(v._id)] = v.videoUrl; });
+
+    // CONVERT CURRICULUM
+    const convertedCurriculum = pending.curriculum.map(section => ({
+      sectionId: section._id,
+      title: section.title,
+      items: section.items.map(item => ({
+        itemId: item._id,
+        type: item.type,
+        title: item.title,
+        videoId: item.videoId,
+        videoUrl: videoMap[String(item.videoId)] || "",
+        documents: item.documents,
+        quizId: item.quizId
+      }))
+    }));
+
+    /* -------------------------------------------------------------
+       ⭐ MAIN LOGIC — UPDATE OR CREATE
+    -------------------------------------------------------------- */
+    let course;
+
+    if (pending.courseId) {
+      // UPDATE existing published course
+      course = await Course.findByIdAndUpdate(
+        pending.courseId,
+        {
+          title: pending.landingTitle || "",
+          subtitle: pending.landingSubtitle || "",
+          description: pending.landingDesc || "",
+          price: Number(pending.price) || 0,
+          thumbnailUrl: pending.thumbnailUrl,
+          instructor: instructorId,
+          learningObjectives: pending.learningObjectives,
+          requirements: pending.requirements,
+          courseFor: pending.courseFor,
+          structure: pending.structure,
+          testVideo: pending.testVideo,
+          sampleVideo: pending.sampleVideo,
+          filmEdit: pending.filmEdit,
+          captions: pending.captions,
+          accessibility: pending.accessibility,
+          promoCode: pending.promoCode,
+          promoDesc: pending.promoDesc,
+          welcomeMsg: pending.welcomeMsg,
+          congratsMsg: pending.congratsMsg,
+          language: pending.language,
+          curriculum: convertedCurriculum
+        },
+        { new: true }
+      );
+    } else {
+      // CREATE new course (first approval)
+      course = await Course.create({
+        title: pending.landingTitle || "",
+        subtitle: pending.landingSubtitle || "",
+        description: pending.landingDesc || "",
+        price: Number(pending.price) || 0,
+        thumbnailUrl: pending.thumbnailUrl,
+        instructor: instructorId,
+        learningObjectives: pending.learningObjectives,
+        requirements: pending.requirements,
+        courseFor: pending.courseFor,
+        structure: pending.structure,
+        testVideo: pending.testVideo,
+        sampleVideo: pending.sampleVideo,
+        filmEdit: pending.filmEdit,
+        captions: pending.captions,
+        accessibility: pending.accessibility,
+        promoCode: pending.promoCode,
+        promoDesc: pending.promoDesc,
+        welcomeMsg: pending.welcomeMsg,
+        congratsMsg: pending.congratsMsg,
+        language: pending.language,
+        curriculum: convertedCurriculum,
+        published: true,
+        rating: 0,
+        ratingsCount: 0,
+        learners: 0,
+        badges: []
+      });
+
+      // SAVE the new courseId ★ THIS IS IMPORTANT ★
+      pending.courseId = course._id;
+    }
+
+    // NOW update pendingCourse status and save it
+    pending.status = "approved";
+    pending.adminMessage = req.body.adminMessage || "";
+    await pending.save();   // ✔ Save AFTER setting courseId
+
+    res.json({
+      success: true,
+      message: "Course approved & published successfully",
+      course
+    });
+
   } catch (err) {
-    res.status(500).json({ message: 'Failed to approve course', error: err.message });
+    console.error("Approve error:", err);
+    res.status(500).json({
+      message: "Failed to approve course",
+      error: err.message
+    });
   }
 };
+
+
 
 exports.deletePendingCourse = async (req, res) => {
   try {
     const courseId = req.params.id;
-    const instructorId = req.user._id;  // correct field
+    const user = req.user;
 
-    const course = await PendingCourse.findOne({
-      _id: courseId,
-      instructor: instructorId   // FIXED ✔
-    });
-
+    // 1. Check if course exists
+    const course = await PendingCourse.findById(courseId);
     if (!course) {
       return res.status(404).json({
         success: false,
-        message: "Course not found or unauthorized."
+        message: "Course not found."
       });
     }
 
+    // 2. Instructor can delete only their course
+    if (user.role === "instructor") {
+      if (String(course.instructor) !== String(user._id)) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not authorized to delete this course."
+        });
+      }
+    }
+
+    // 3. Admin can delete ANY course (no check needed)
+    
     await PendingCourse.deleteOne({ _id: courseId });
 
     return res.json({
@@ -249,7 +391,6 @@ exports.deletePendingCourse = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-
 
 // PUT /api/pending-courses/:id/reject
 exports.reject = async (req, res) => {

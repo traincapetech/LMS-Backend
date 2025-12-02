@@ -68,6 +68,7 @@ exports.login = async (req, res) => {
   }
 };
 
+
 // Forgot Password: Send OTP
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;

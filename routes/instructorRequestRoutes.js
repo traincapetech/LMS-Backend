@@ -24,6 +24,7 @@ router.use(async (req, res, next) => {
 router.post('/apply', instructorRequestController.apply);
 router.get('/', instructorRequestController.list);
 router.put('/:id/approve', instructorRequestController.approve);
+router.delete("/deleteInstructor/:id",instructorRequestController.deleteInstructor)
 router.put('/:id/reject', instructorRequestController.reject);
 
 module.exports = router; 

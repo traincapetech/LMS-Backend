@@ -43,6 +43,7 @@ const pendingCourseSchema = new mongoose.Schema({
   congratsMsg: String,
   curriculum: [SectionSchema],
   instructor: { type:  mongoose.Schema.Types.ObjectId , ref: "User", required: true },
+  courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
   status: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],

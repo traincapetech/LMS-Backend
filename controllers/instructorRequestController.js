@@ -56,6 +56,27 @@ exports.approve = async (req, res) => {
   res.json({ message: 'Instructor approved.' });
 };
 
+// for deleting the instructors 
+
+exports.deleteInstructor=async (req,res)=>{
+  try {
+    const deleted = await User.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ message: "Instructor not found" });
+    }
+
+    res.json({ success: true, deleted ,message: "Instructor deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete user", error: err.message });
+  }
+};
+
+
+
+
+
+
 exports.reject = async (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ message: 'Forbidden' });
   const request = await InstructorRequest.findById(req.params.id);

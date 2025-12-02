@@ -1,41 +1,83 @@
 const mongoose = require('mongoose');
 
+/* ---------------- DOCUMENT ---------------- */
+const DocumentSchema = new mongoose.Schema({
+  fileUrl: String,
+  fileName: String
+}, { _id: false });
+
+/* ---------------- ITEM ---------------- */
+const ItemSchema = new mongoose.Schema({
+  itemId: { type: String },  // original pending item _id
+
+  type: { type: String, required: true },
+  title: String,
+
+  videoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Video', default: null },
+  videoUrl: { type: String, default: "" },
+
+  documents: [DocumentSchema],
+
+  quizId: { type: mongoose.Schema.Types.ObjectId, ref: "Quiz", default: null }
+}, { _id: false });
+
+/* ---------------- SECTION ---------------- */
+const SectionSchema = new mongoose.Schema({
+  sectionId: { type: String },      // original pending section _id
+  title: String,                    // 🌟 FIXED: must match pendingCourse
+  items: [ItemSchema]
+}, { _id: false });
+
+/* ---------------- FINAL COURSE ---------------- */
 const courseSchema = new mongoose.Schema({
+
+  /* ===== Basic ===== */
   title: { type: String, default: "" },
+  subtitle: { type: String, default: "" },
   description: { type: String, default: "" },
   price: { type: Number, default: 0 },
+  thumbnailUrl: { type: String, default: "" },
 
-  instructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  /* ===== Instructor ===== */
+  instructor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
 
-  courseType: { type: String },
-  category: { type: String },
-  timeCommitment: { type: String },
-
-  curriculum: [
-  {
-    sectionTitle: String,
-    items: [
-      {
-        type: String,
-        title: String,
-        videoUrl: String,
-        documents: [
-          { fileUrl: String, fileName: String }
-        ],
-        quizId: { type: mongoose.Schema.Types.ObjectId, ref: "Quiz" }
-      }
-    ]
-  }
-],
-  published: { type: Boolean, default: false },
-  thumbnailUrl: { type: String },
-  rating: { type: Number, default: 0 },
-  badges: [{ type: String }],
-  subtitle: { type: String },
+  /* ===== From PendingCourse (MISSING FIELDS ADDED HERE) ===== */
   learningObjectives: [String],
+  requirements: [String],
+  courseFor: String,
+  structure: String,
+  testVideo: { type: String, default: "" },
+  sampleVideo: { type: String, default: "" },
+  filmEdit: { type: String, default: "" },
+  captions: { type: String, default: "" },
+  accessibility: { type: String, default: "" },
+
+  landingTitle: String,
+  landingSubtitle: String,
+  landingDesc: String,
+
+  promoCode: String,
+  promoDesc: String,
+
+  welcomeMsg: String,
+  congratsMsg: String,
+
   language: { type: String, default: "English" },
-  learners: { type: Number, default: 0 },
+
+  /* ===== Curriculum ===== */
+  curriculum: [SectionSchema],
+
+  /* ===== Stats ===== */
+  published: { type: Boolean, default: true },
+  rating: { type: Number, default: 0 },
   ratingsCount: { type: Number, default: 0 },
+  learners: { type: Number, default: 0 },
+  badges: [{ type: String }],
+
 }, { timestamps: true });
 
-module.exports = mongoose.model('Course', courseSchema); 
+module.exports = mongoose.model("Course", courseSchema);
