@@ -5,8 +5,6 @@ const connectDB = require("./config/db");
 const User = require('./models/User');
 const bcrypt = require('bcryptjs');
 
-const requireAuth = require('./utils/requireAuth');
-const requireInstructor = require('./utils/requireInstructor');
 dotenv.config();
 
 // Debug environment variables
@@ -77,7 +75,7 @@ app.use(express.json({ limit: '5mb' }));
 app.options('*', cors());
 
 app.use('/uploads', express.static('uploads'));
-app.use('/api/upload', requireAuth,requireInstructor,require('./routes/uploadRoutes'));
+app.use('/api/upload',require('./routes/uploadRoutes'));
 
 // Routes
 app.use("/api", require("./routes/otpRoutes"));

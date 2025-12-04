@@ -70,7 +70,11 @@ const courseSchema = new mongoose.Schema({
 
   /* ===== Curriculum ===== */
   curriculum: [SectionSchema],
-
+  pendingCourseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PendingCourse",
+    required: true
+  },
   /* ===== Stats ===== */
   published: { type: Boolean, default: true },
   rating: { type: Number, default: 0 },

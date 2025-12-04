@@ -119,7 +119,7 @@ exports.createPendingCourse = async (req, res) => {
 
 // /api/pending-courses/update/:pendingCourseId 
 exports.editCourse = async (req, res) => {
- 
+
   try {
     const courseId = req.params.id;
     console.log("courseid ", courseId)
@@ -135,7 +135,7 @@ exports.editCourse = async (req, res) => {
         return res.status(400).json({ message: "Invalid JSON in form-data" });
       }
     }
-  
+
     // Correct ownership check
     const course = await PendingCourse.findOne({
       _id: courseId, instructor: req.user._id,
@@ -278,6 +278,7 @@ exports.approve = async (req, res) => {
           price: Number(pending.price) || 0,
           thumbnailUrl: pending.thumbnailUrl,
           instructor: instructorId,
+          pendingCourseId: pending._id,
           learningObjectives: pending.learningObjectives,
           requirements: pending.requirements,
           courseFor: pending.courseFor,
@@ -305,6 +306,7 @@ exports.approve = async (req, res) => {
         price: Number(pending.price) || 0,
         thumbnailUrl: pending.thumbnailUrl,
         instructor: instructorId,
+        pendingCourseId: pending._id,
         learningObjectives: pending.learningObjectives,
         requirements: pending.requirements,
         courseFor: pending.courseFor,
@@ -378,7 +380,7 @@ exports.deletePendingCourse = async (req, res) => {
     }
 
     // 3. Admin can delete ANY course (no check needed)
-    
+
     await PendingCourse.deleteOne({ _id: courseId });
 
     return res.json({
