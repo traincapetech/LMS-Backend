@@ -24,16 +24,21 @@ git push -u origin main
 1. Go to https://dashboard.render.com
 2. Click **"New +"** → **"Web Service"**
 3. Connect your GitHub account if not already connected
-4. Select the repository: `traincapetech/LMS-Server`
+4. **IMPORTANT**: Select the repository: `traincapetech/LMS-Server` (NOT LMS-Backend)
 5. Configure the service:
    - **Name**: `lms-backend` (or your preferred name)
    - **Region**: Choose closest to your users
    - **Branch**: `main`
-   - **Root Directory**: Leave empty (or set to `LMS-Backend` if repo structure requires it)
+   - **Root Directory**: **Leave EMPTY** (files are at repository root)
    - **Runtime**: `Node`
    - **Build Command**: `npm install`
    - **Start Command**: `npm start`
    - **Plan**: Choose Free or Paid plan
+
+**⚠️ CRITICAL**: If you see an error about `package.json` not found:
+- Make sure **Root Directory** is **EMPTY** (not set to `src` or any other directory)
+- Verify the repository URL is `traincapetech/LMS-Server` (not `LMS-Backend`)
+- The `package.json` should be at the root of the repository
 
 ### 3. Configure Environment Variables
 
@@ -118,6 +123,29 @@ git push
 - You can also manually deploy from the Render dashboard
 
 ## Troubleshooting
+
+### Error: "Could not read package.json: ENOENT: no such file or directory"
+
+**This error means Render can't find your package.json file. Fix it by:**
+
+1. **Check Repository URL**: 
+   - Go to Render Dashboard → Your Service → Settings
+   - Verify **Repository** is set to `traincapetech/LMS-Server` (NOT `LMS-Backend`)
+   - If wrong, disconnect and reconnect the correct repository
+
+2. **Check Root Directory**:
+   - Go to Settings → Scroll to "Root Directory"
+   - **Make sure it's EMPTY** (not `src`, `LMS-Backend`, or any other value)
+   - If it has a value, clear it and save
+
+3. **Verify Repository Structure**:
+   - Your `package.json` should be at the root of the `LMS-Server` repository
+   - If you pushed from `LMS-Backend` directory, files should be at root level
+   - Check GitHub: `https://github.com/traincapetech/LMS-Server` - you should see `package.json` at the root
+
+4. **If files are in a subdirectory on GitHub**:
+   - Set Root Directory to that subdirectory name (e.g., `LMS-Backend`)
+   - But ideally, files should be at root for easier deployment
 
 ### Service won't start:
 - Check logs in Render dashboard

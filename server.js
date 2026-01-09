@@ -56,14 +56,21 @@ async function ensureAdminUser() {
 const app = express();
 
 // Configure CORS properly
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://cognify.traincapetech.in",
+  "https://www.cognify.traincapetech.in",
+];
+
+// Add Render URL from environment variable if set
+if (process.env.RENDER_URL) {
+  allowedOrigins.push(process.env.RENDER_URL);
+}
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:3000",
-      "https://cognify.traincapetech.in",
-      "https://www.cognify.traincapetech.in",
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Last-Check"],
     credentials: true,
