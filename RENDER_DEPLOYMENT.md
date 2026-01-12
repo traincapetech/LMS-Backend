@@ -65,6 +65,19 @@ In the Render dashboard, go to **Environment** tab and add these variables:
 - `GMAIL_REFRESH_TOKEN`
 - `GMAIL_ACCESS_TOKEN`
 
+#### R2 Cloud Storage Configuration (Required for file uploads):
+- `R2_ENDPOINT` - Your Cloudflare R2 endpoint URL
+- `R2_ACCESS_KEY_ID` - R2 access key ID
+- `R2_SECRET_ACCESS_KEY` - R2 secret access key
+- `R2_BUCKET_VIDEOS` - Name of your videos bucket
+- `R2_BUCKET_DOCS` - Name of your documents bucket
+- `R2_BUCKET_IMAGES` - Name of your images bucket
+- `R2_PUBLIC_URL_VIDEOS` - Public URL for videos (custom domain or R2 public URL)
+- `R2_PUBLIC_URL_DOCS` - Public URL for documents
+- `R2_PUBLIC_URL_IMAGES` - Public URL for images
+
+**Note:** If R2 is not configured, video/document/image uploads will fail with a 500 error. Make sure all R2 variables are set correctly.
+
 ### 4. Update CORS Settings
 
 After deployment, you'll get a Render URL like `https://lms-backend.onrender.com`. 

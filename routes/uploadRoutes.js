@@ -95,17 +95,48 @@ router.post(
           message: "Pending course not found or unauthorized",
         });
 
+      // Check if R2 environment variables are set and not empty
+      const imagesBucketName = process.env.R2_BUCKET_IMAGES?.trim();
+      const imagesPublicUrl = process.env.R2_PUBLIC_URL_IMAGES?.trim();
+      
+      if (!imagesBucketName || !imagesPublicUrl) {
+        console.error("R2 configuration missing or empty:", {
+          R2_BUCKET_IMAGES: imagesBucketName || "MISSING",
+          R2_PUBLIC_URL_IMAGES: imagesPublicUrl || "MISSING",
+        });
+        return res.status(500).json({
+          success: false,
+          message: "Image storage not configured. Please contact administrator.",
+          error: "R2_BUCKET_IMAGES or R2_PUBLIC_URL_IMAGES environment variable is missing or empty",
+        });
+      }
+
       // 🗂 R2 key organized by user + course
-      const key = `thumbnails/${req.user.id}/${pendingCourseId}/${Date.now()}_${req.file.originalname
-        }`;
+      const key = `thumbnails/${req.user.id}/${pendingCourseId}/${Date.now()}_${req.file.originalname}`;
 
       // 📤 Upload to R2
-      const url = await uploadToBucket(
-        req.file.buffer,
-        process.env.R2_BUCKET_IMAGES,
-        key,
-        req.file.mimetype
-      );
+      let url;
+      try {
+        url = await uploadToBucket(
+          req.file.buffer,
+          imagesBucketName, // Use validated bucket name
+          key,
+          req.file.mimetype
+        );
+      } catch (uploadErr) {
+        console.error("R2 upload error:", uploadErr);
+        console.error("Upload error details:", {
+          bucket: imagesBucketName,
+          key: key,
+          fileSize: req.file.size,
+          error: uploadErr.message,
+        });
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload thumbnail to storage",
+          error: uploadErr.message,
+        });
+      }
 
       // 💾 Save to DB
       course.thumbnailUrl = url;
@@ -155,16 +186,47 @@ router.post(
           message: "Pending course not found or unauthorized",
         });
 
-      // Upload to bucket
-      const key = `documents/${req.user.id}/${pendingCourseId}/${Date.now()}_${req.file.originalname
-        }`;
+      // Check if R2 environment variables are set and not empty
+      const docsBucketName = process.env.R2_BUCKET_DOCS?.trim();
+      const docsPublicUrl = process.env.R2_PUBLIC_URL_DOCS?.trim();
+      
+      if (!docsBucketName || !docsPublicUrl) {
+        console.error("R2 configuration missing or empty:", {
+          R2_BUCKET_DOCS: docsBucketName || "MISSING",
+          R2_PUBLIC_URL_DOCS: docsPublicUrl || "MISSING",
+        });
+        return res.status(500).json({
+          success: false,
+          message: "Document storage not configured. Please contact administrator.",
+          error: "R2_BUCKET_DOCS or R2_PUBLIC_URL_DOCS environment variable is missing or empty",
+        });
+      }
 
-      const url = await uploadToBucket(
-        req.file.buffer,
-        process.env.R2_BUCKET_DOCS,
-        key,
-        req.file.mimetype
-      );
+      // Upload to bucket
+      const key = `documents/${req.user.id}/${pendingCourseId}/${Date.now()}_${req.file.originalname}`;
+
+      let url;
+      try {
+        url = await uploadToBucket(
+          req.file.buffer,
+          docsBucketName, // Use validated bucket name
+          key,
+          req.file.mimetype
+        );
+      } catch (uploadErr) {
+        console.error("R2 upload error:", uploadErr);
+        console.error("Upload error details:", {
+          bucket: docsBucketName,
+          key: key,
+          fileSize: req.file.size,
+          error: uploadErr.message,
+        });
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload document to storage",
+          error: uploadErr.message,
+        });
+      }
 
       // // 🔎 Find section by ID
       // console.log("📋 Looking for section:", sectionId);
@@ -278,26 +340,108 @@ router.post(
         });
       }
 
-      const key = `videos/${req.user.id}/${pendingCourseId}/${Date.now()}_${req.file.originalname
-        }`;
+      // Check if R2 environment variables are set and not empty
+      const bucketName = process.env.R2_BUCKET_VIDEOS?.trim();
+      const publicUrl = process.env.R2_PUBLIC_URL_VIDEOS?.trim();
+      
+      console.log("🔍 Checking R2 configuration for video upload:", {
+        R2_BUCKET_VIDEOS: bucketName ? `"${bucketName}" (${bucketName.length} chars)` : "MISSING",
+        R2_PUBLIC_URL_VIDEOS: publicUrl ? `"${publicUrl}" (${publicUrl.length} chars)` : "MISSING",
+        R2_BUCKET_VIDEOS_raw: process.env.R2_BUCKET_VIDEOS,
+      });
+      
+      if (!bucketName || bucketName === '' || !publicUrl || publicUrl === '') {
+        console.error("❌ R2 configuration missing or empty:", {
+          R2_BUCKET_VIDEOS: bucketName || "MISSING",
+          R2_PUBLIC_URL_VIDEOS: publicUrl || "MISSING",
+          raw_R2_BUCKET_VIDEOS: process.env.R2_BUCKET_VIDEOS,
+        });
+        return res.status(500).json({
+          success: false,
+          message: "Video storage not configured. Please contact administrator.",
+          error: "R2_BUCKET_VIDEOS or R2_PUBLIC_URL_VIDEOS environment variable is missing or empty",
+        });
+      }
+      
+      // Double-check bucket name is valid before proceeding
+      if (typeof bucketName !== 'string' || bucketName.length === 0) {
+        console.error("❌ Invalid bucket name type or length:", {
+          bucketName: bucketName,
+          type: typeof bucketName,
+          length: bucketName?.length,
+        });
+        return res.status(500).json({
+          success: false,
+          message: "Video storage configuration error",
+          error: "Bucket name is invalid",
+        });
+      }
 
-      const url = await uploadToBucket(
-        req.file.buffer,
-        process.env.R2_BUCKET_VIDEOS, // ⭐ Correct bucket
-        key,
-        req.file.mimetype
-      );
+      const key = `videos/${req.user.id}/${pendingCourseId}/${Date.now()}_${req.file.originalname}`;
+
+      // Final validation before upload
+      console.log("🚀 About to upload video:", {
+        bucketName: bucketName,
+        bucketNameType: typeof bucketName,
+        bucketNameLength: bucketName?.length,
+        key: key,
+        fileSize: req.file.size,
+        mimetype: req.file.mimetype,
+      });
+
+      // Ensure bucketName is still valid (defensive check)
+      if (!bucketName || typeof bucketName !== 'string' || bucketName.trim() === '') {
+        console.error("❌ Bucket name became invalid before upload:", bucketName);
+        return res.status(500).json({
+          success: false,
+          message: "Video storage configuration error",
+          error: "Bucket name validation failed",
+        });
+      }
+
+      let url;
+      try {
+        url = await uploadToBucket(
+          req.file.buffer,
+          bucketName, // Use validated bucket name
+          key,
+          req.file.mimetype
+        );
+      } catch (uploadErr) {
+        console.error("R2 upload error:", uploadErr);
+        console.error("Upload error details:", {
+          bucket: bucketName,
+          key: key,
+          fileSize: req.file.size,
+          error: uploadErr.message,
+        });
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload video to storage",
+          error: uploadErr.message,
+        });
+      }
 
       // Create video document
-      const videoDoc = await Video.create({
-        pendingCourseId,
-        instructorId: req.user.id,
-        title: req.body.title || req.file.originalname,
-        url,
-        duration: Number(req.body.duration) || 0,
-        filename: req.file.originalname,
-        size: req.file.size,
-      });
+      let videoDoc;
+      try {
+        videoDoc = await Video.create({
+          pendingCourseId,
+          instructorId: req.user.id,
+          title: req.body.title || req.file.originalname,
+          url,
+          duration: Number(req.body.duration) || 0,
+          filename: req.file.originalname,
+          size: req.file.size,
+        });
+      } catch (dbErr) {
+        console.error("Database error:", dbErr);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to save video record",
+          error: dbErr.message,
+        });
+      }
 
       return res.status(201).json({
         success: true,
@@ -307,10 +451,12 @@ router.post(
       });
     } catch (err) {
       console.error("Video upload error:", err);
+      console.error("Error stack:", err.stack);
       res.status(500).json({
         success: false,
         message: "Video upload failed",
         error: err.message,
+        details: process.env.NODE_ENV === "development" ? err.stack : undefined,
       });
     }
   }
