@@ -1,6 +1,7 @@
 const Course = require("../models/Course");
 const User = require("../models/User");
 const { sendGenericEmail } = require("../utils/emailService");
+const { uploadToBucket, deleteFromBucket } = require("../config/r2");
 
 exports.getHomeStats = async (req, res) => {
   try {
@@ -75,9 +76,7 @@ exports.submitContactForm = async (req, res) => {
       (emailResult && emailResult.success === true) || emailResult === true;
 
     if (isSuccess) {
-      return res
-        .status(200)
-        .json({  message: "Message sent successfully!" });
+      return res.status(200).json({ message: "Message sent successfully!" });
     } else {
       return res.status(500).json({
         message: "Failed to send message. Please try again later.",
@@ -89,5 +88,86 @@ exports.submitContactForm = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Server error processing your request." });
+  }
+};
+
+exports.uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image uploaded." });
+    }
+
+    const userId = req.user.id;
+    const key = `avatars/${userId}/${Date.now()}_${req.file.originalname}`;
+
+    // Upload to R2 (Images bucket)
+    const url = await uploadToBucket(
+      req.file.buffer,
+      process.env.R2_BUCKET_IMAGES,
+      key,
+      req.file.mimetype
+    );
+
+    // Update user profile
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // Delete old avatar if it exists and is on R2
+    if (
+      user.photoUrl &&
+      user.photoUrl.startsWith(process.env.R2_PUBLIC_URL_IMAGES)
+    ) {
+      const oldKey = user.photoUrl.replace(
+        `${process.env.R2_PUBLIC_URL_IMAGES}/`,
+        ""
+      );
+      try {
+        await deleteFromBucket(process.env.R2_BUCKET_IMAGES, oldKey);
+      } catch (delErr) {
+        console.error("Failed to delete old avatar:", delErr);
+      }
+    }
+
+    user.photoUrl = url;
+    await user.save();
+
+    res.json({ success: true, message: "Avatar uploaded successfully.", url });
+  } catch (err) {
+    console.error("Error uploading avatar:", err);
+    res.status(500).json({ message: "Server error uploading avatar." });
+  }
+};
+
+exports.removeAvatar = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (!user.photoUrl) {
+      return res.status(400).json({ message: "User has no avatar to remove." });
+    }
+
+    // Only try to delete if it's hosted on our R2
+    if (user.photoUrl.startsWith(process.env.R2_PUBLIC_URL_IMAGES)) {
+      const key = user.photoUrl.replace(
+        `${process.env.R2_PUBLIC_URL_IMAGES}/`,
+        ""
+      );
+      await deleteFromBucket(process.env.R2_BUCKET_IMAGES, key);
+    }
+
+    user.photoUrl = "";
+    await user.save();
+
+    res.json({ success: true, message: "Avatar removed successfully." });
+  } catch (err) {
+    console.error("Error removing avatar:", err);
+    res.status(500).json({ message: "Server error removing avatar." });
   }
 };

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Certificate of Completion</title>
+  <!-- Google Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #ffffff;
+    }
+
+    .certificate {
+      width: 842px;
+      height: 595px;
+      padding: 48px 56px;
+      position: relative;
+      background: #ffffff;
+    }
+
+    /* Left accent border - Blue theme */
+    .left-border {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    }
+
+    /* Header section */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 32px;
+    }
+
+    .logo {
+      font-size: 36px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .logo span {
+      color: #2563eb;
+    }
+
+    .cert-info {
+      text-align: right;
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    /* Divider line */
+    .divider {
+      border-top: 1px solid #e2e8f0;
+      margin-bottom: 28px;
+    }
+
+    /* Certificate of completion label */
+    .completion-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    /* Course title */
+    .course-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 36px;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.2;
+      margin-bottom: 16px;
+      max-width: 650px;
+    }
+
+    /* Instructor info */
+    .instructor {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 60px;
+    }
+
+    .instructor strong {
+      color: #1e293b;
+      font-weight: 600;
+    }
+
+    /* Student name */
+    .student-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: #2563eb;
+      margin-bottom: 20px;
+    }
+
+    /* Footer info */
+    .footer-info {
+      display: flex;
+      gap: 48px;
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .footer-info strong {
+      color: #1e293b;
+      font-weight: 600;
+    }
+
+    /* Verification text at bottom */
+    .verification {
+      position: absolute;
+      bottom: 24px;
+      left: 56px;
+      right: 56px;
+      font-size: 10px;
+      color: #94a3b8;
+      line-height: 1.5;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 16px;
+    }
+
+    /* Decorative element */
+    .badge {
+      position: absolute;
+      right: 56px;
+      bottom: 80px;
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 32px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="certificate">
+    <!-- Left blue border accent -->
+    <div class="left-border"></div>
+
+    <!-- Header -->
+    <div class="header">
+      <div class="logo" style="color: #1e293b;">
+        Traincape
+      </div>
+      <div class="cert-info">
+        Certificate no: {{certificateId}}<br>
+        Certificate url: cognify.traincapetech.in/certificate/{{certificateId}}<br>
+        Reference Number: {{referenceNumber}}
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <div class="divider"></div>
+
+    <!-- Content -->
+    <p class="completion-label">Certificate of Completion</p>
+
+    <h1 class="course-title">{{courseName}}</h1>
+
+    <p class="instructor">
+      Instructors <strong>{{instructorName}}</strong>
+    </p>
+
+    <h2 class="student-name">{{studentName}}</h2>
+
+    <div class="footer-info">
+      <p>Date <strong>{{completionDate}}</strong></p>
+      <p>Length <strong>{{courseDuration}}</strong></p>
+    </div>
+
+    <!-- Verification badge -->
+    <div class="badge">✓</div>
+
+    <!-- Verification text -->
+    <div class="verification">
+      This certificate above verifies that <strong>{{studentName}}</strong> successfully completed the course
+      <strong>{{courseName}}</strong> as taught by <strong>{{instructorName}}</strong> on Traincape LMS.
+      The certificate indicates the entire course was completed as validated by the student.
+    </div>
+  </div>
+</body>
+
+</html>

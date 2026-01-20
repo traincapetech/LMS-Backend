@@ -122,6 +122,7 @@ app.use("/api/discussion", require("./routes/discussionRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 app.use("/api/questions", require("./routes/questionRoutes"));
 app.use("/api/notes", require("./routes/noteRoutes"));
+app.use("/api/certificate", require("./routes/certificateRoutes"));
 
 // Global error handler
 app.use((err, req, res, next) => {

@@ -9,6 +9,36 @@ const DocumentSchema = new mongoose.Schema(
   { _id: false }
 );
 
+
+const EmbeddedQuestionSchema = new mongoose.Schema(
+  {
+    id: { type: String, default: "" },
+    question: { type: String,default:"" },
+    answers: [
+      {
+        id: { type: String, default: "" },
+        text: { type: String },
+        correct: { type: Boolean, default: false },
+      },
+    ],
+
+    type: {
+      type: String,
+      enum: ["single", "multiple", "True/false"],
+      default: "single",
+    },
+    difficulty: {
+      type: String,
+      enum: ["easy", "medium", "hard"],
+      default: "easy",
+    },
+    image: { type: String, default: "" },
+    hint: { type: String, default: "" },
+    tags: [{ type: String, default: "" }],
+  },
+  { _id: false }
+);
+
 /* ---------------- ITEM ---------------- */
 const ItemSchema = new mongoose.Schema(
   {
@@ -29,7 +59,7 @@ const ItemSchema = new mongoose.Schema(
     // Embedded questions for quizzes (synced from PendingCourse)
     // Embedded questions for quizzes (synced from PendingCourse)
     // Using Mixed Array ([]) to bypass "Cast to [string]" error
-    quizQuestions: [],
+    quizQuestions: [EmbeddedQuestionSchema],
 
     quizId: {
       type: mongoose.Schema.Types.ObjectId,

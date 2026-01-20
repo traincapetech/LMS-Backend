@@ -8,6 +8,9 @@ const requireInstructor = require("../utils/requireInstructor");
 const PendingCourse = require("../models/PendingCourse");
 const Video = require("../models/Video");
 
+const { getVideoDurationInSeconds } = require("get-video-duration");
+const { Readable } = require("stream");
+
 const { uploadToBucket } = require("../config/r2.js");
 
 // Multer memory storage (required for R2)
@@ -18,10 +21,10 @@ router.get("/check/:id", async (req, res) => {
     const { id } = req.params;
 
     // Validate ID before querying to prevent spam errors
-    if (!id || id === 'undefined' || id === 'null' || id.length !== 24) {
+    if (!id || id === "undefined" || id === "null" || id.length !== 24) {
       return res.status(400).json({
         success: false,
-        message: "Invalid ID provided"
+        message: "Invalid ID provided",
       });
     }
 
@@ -422,6 +425,18 @@ router.post(
         });
       }
 
+      // Calculate Duration if not provided
+      let duration = Number(req.body.duration) || 0;
+      if (duration === 0) {
+        try {
+          const stream = Readable.from(req.file.buffer);
+          duration = await getVideoDurationInSeconds(stream);
+          console.log(`Calculated duration: ${duration}s`);
+        } catch (e) {
+          console.error("Failed to calculate video duration from buffer:", e);
+        }
+      }
+
       // Create video document
       let videoDoc;
       try {
@@ -430,7 +445,7 @@ router.post(
           instructorId: req.user.id,
           title: req.body.title || req.file.originalname,
           url,
-          duration: Number(req.body.duration) || 0,
+          duration: duration,
           filename: req.file.originalname,
           size: req.file.size,
         });
