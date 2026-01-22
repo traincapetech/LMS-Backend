@@ -88,9 +88,39 @@ exports.getById = async (req, res) => {
       })),
     }));
 
+    let publishedCourse = null;
+    if (course.courseId) {
+      const published = await Course.findById(course.courseId)
+        .select(
+          [
+            "title",
+            "subtitle",
+            "description",
+            "price",
+            "learningObjectives",
+            "requirements",
+            "structure",
+            "landingTitle",
+            "landingSubtitle",
+            "landingDesc",
+            "captions",
+            "accessibility",
+            "promoCode",
+            "promoDesc",
+            "welcomeMsg",
+            "congratsMsg",
+            "curriculum",
+            "updatedAt",
+          ].join(" ")
+        )
+        .lean();
+      publishedCourse = published || null;
+    }
+
     const formatted = {
       ...course,
       curriculum: enrichedCurriculum,
+      publishedCourse,
     };
 
     res.json(formatted);
@@ -307,6 +337,15 @@ exports.approve = async (req, res) => {
       videoMap[String(v._id)] = v.videoUrl;
     });
 
+    const adminPriceRaw = req.body?.adminPrice;
+    const adminPrice =
+      adminPriceRaw !== undefined && adminPriceRaw !== ""
+        ? Number(adminPriceRaw)
+        : Number(pending.price);
+    const approvedPrice = Number.isFinite(adminPrice)
+      ? adminPrice
+      : Number(pending.price) || 0;
+
     // CONVERT CURRICULUM
     const convertedCurriculum = pending.curriculum.map((section) => ({
       sectionId: section._id,
@@ -336,7 +375,7 @@ exports.approve = async (req, res) => {
           title: pending.landingTitle || "",
           subtitle: pending.landingSubtitle || "",
           description: pending.landingDesc || "",
-          price: Number(pending.price) || 0,
+          price: approvedPrice,
           thumbnailUrl: pending.thumbnailUrl,
           instructor: instructorId,
           pendingCourseId: pending._id,
@@ -364,7 +403,7 @@ exports.approve = async (req, res) => {
         title: pending.landingTitle || "",
         subtitle: pending.landingSubtitle || "",
         description: pending.landingDesc || "",
-        price: Number(pending.price) || 0,
+        price: approvedPrice,
         thumbnailUrl: pending.thumbnailUrl,
         instructor: instructorId,
         pendingCourseId: pending._id,

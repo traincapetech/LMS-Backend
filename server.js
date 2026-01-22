@@ -109,6 +109,7 @@ app.use("/api/pending-courses", require("./routes/pendingCourseRoutes"));
 app.use("/api/cart", require("./routes/cartRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/coupons", require("./routes/couponRoutes"));
+app.use("/api/admin/courses", require("./routes/adminCourseRoutes"));
 app.use(
   "/api/quizzes/:quizId/questions",
   require("./routes/quizQuestion&Option")
