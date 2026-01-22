@@ -123,8 +123,15 @@ const createOrderFromCart = async ({
 
   const { subtotal: baseSubtotal, total: baseTotal } = normalizeTotals(cart);
   let rate = 1;
+  let effectiveCurrency = resolvedCurrency;
   if (resolvedCurrency !== baseCurrency) {
-    rate = await getRate(baseCurrency, resolvedCurrency);
+    try {
+      rate = await getRate(baseCurrency, resolvedCurrency);
+    } catch (err) {
+      console.error("Currency conversion failed, falling back to INR:", err.message);
+      rate = 1;
+      effectiveCurrency = baseCurrency;
+    }
   }
 
   const subtotal = Number((baseSubtotal * rate).toFixed(2));
@@ -145,7 +152,7 @@ const createOrderFromCart = async ({
   const order = await Order.create({
     user: userId,
     items: orderItems,
-    currency: resolvedCurrency,
+    currency: effectiveCurrency,
     baseCurrency,
     couponCode: cart.couponCode || null,
     discountPercentage: cart.discountPercentage || 0,
