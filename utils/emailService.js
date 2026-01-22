@@ -1,4 +1,194 @@
 const nodemailer = require("nodemailer");
+const https = require("https");
+
+const getFromAddress = () =>
+  process.env.BREVO_FROM ||
+  process.env.SMTP_FROM ||
+  process.env.EMAIL_FROM ||
+  process.env.MAIL_FROM ||
+  process.env.SMTP_USER ||
+  process.env.EMAIL_USER ||
+  process.env.MAIL_USER;
+
+const getFromName = () =>
+  process.env.BREVO_FROM_NAME ||
+  process.env.SMTP_FROM_NAME ||
+  process.env.EMAIL_FROM_NAME ||
+  process.env.MAIL_FROM_NAME ||
+  "Traincape LMS";
+
+const getFromHeader = () => {
+  const fromAddress = getFromAddress();
+  if (!fromAddress) return "";
+  return /<.*>/.test(fromAddress)
+    ? fromAddress
+    : `${getFromName()} <${fromAddress}>`;
+};
+
+const getBrevoSender = () => {
+  const email = getFromAddress();
+  const name = getFromName();
+  if (!email) return null;
+  return { name, email };
+};
+
+const sendBrevoApiEmail = async ({ to, subject, html, text }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return { success: false, error: "BREVO_API_KEY missing" };
+
+  const sender = getBrevoSender();
+  if (!sender) return { success: false, error: "Sender address missing" };
+
+  const payload = JSON.stringify({
+    sender,
+    to: [{ email: to }],
+    subject,
+    htmlContent: html,
+    textContent: text,
+  });
+
+  const options = {
+    hostname: "api.brevo.com",
+    path: "/v3/smtp/email",
+    method: "POST",
+    headers: {
+      "api-key": apiKey,
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(payload),
+    },
+    timeout: 30000,
+  };
+
+  return new Promise((resolve) => {
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log("✅ Brevo API email sent:", data || "OK");
+          resolve({ success: true });
+        } else {
+          console.error("❌ Brevo API error:", res.statusCode, data);
+          resolve({
+            success: false,
+            error: `Brevo API error ${res.statusCode}: ${data}`,
+          });
+        }
+      });
+    });
+
+    req.on("error", (err) => {
+      console.error("❌ Brevo API request failed:", err.message);
+      resolve({ success: false, error: err.message });
+    });
+
+    req.on("timeout", () => {
+      req.destroy();
+      console.error("❌ Brevo API request timed out");
+      resolve({ success: false, error: "Brevo API request timed out" });
+    });
+
+    req.write(payload);
+    req.end();
+  });
+};
+
+const buildSmtpConfigs = () => {
+  // Prefer Brevo SMTP if configured
+  const brevoUser =
+    process.env.BREVO_SMTP_USER || process.env.BREVO_SMTP_LOGIN;
+  const brevoPass = process.env.BREVO_SMTP_PASSWORD || process.env.BREVO_SMTP_KEY;
+  const brevoPort =
+    Number(process.env.BREVO_SMTP_PORT || 587) || 587;
+
+  const configs = [];
+
+  if (brevoUser && brevoPass) {
+    configs.push({
+      host: "smtp-relay.brevo.com",
+      port: brevoPort,
+      secure: brevoPort === 465,
+      auth: { user: brevoUser, pass: brevoPass },
+      requireTLS: brevoPort !== 465,
+      tls: { rejectUnauthorized: true },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
+    });
+  }
+
+  // Support multiple env naming conventions
+  const host =
+    process.env.SMTP_HOST || process.env.EMAIL_HOST || process.env.MAIL_HOST;
+  const portStr =
+    process.env.SMTP_PORT || process.env.EMAIL_PORT || process.env.MAIL_PORT;
+  const user =
+    process.env.SMTP_USER || process.env.EMAIL_USER || process.env.MAIL_USER;
+  const pass =
+    process.env.SMTP_PASSWORD ||
+    process.env.EMAIL_PASSWORD ||
+    process.env.MAIL_PASSWORD ||
+    process.env.MAIL_PASS;
+  const secureStr =
+    process.env.SMTP_SECURE ||
+    process.env.EMAIL_SECURE ||
+    process.env.MAIL_SECURE;
+  const rejectUnauthorizedStr =
+    process.env.SMTP_TLS_REJECT_UNAUTHORIZED ||
+    process.env.EMAIL_TLS_REJECT_UNAUTHORIZED ||
+    process.env.MAIL_TLS_REJECT_UNAUTHORIZED;
+
+  if (!host || !user || !pass) return configs;
+
+  const port = Number(portStr || 587);
+  const secure =
+    String(secureStr || "").toLowerCase() === "true" || port === 465;
+  const rejectUnauthorized =
+    String(rejectUnauthorizedStr || "true").toLowerCase() === "true";
+
+  configs.push(
+    {
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+      requireTLS: !secure,
+      tls: { rejectUnauthorized },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
+    }
+  );
+
+  // If port is not explicitly set, try a secure 465 fallback
+  if (!portStr && port !== 465) {
+    configs.push({
+      host,
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+      requireTLS: false,
+      tls: { rejectUnauthorized },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
+    });
+  }
+
+  return configs;
+};
+
+const createTransporterFromConfig = (config) =>
+  nodemailer.createTransport(config);
+
+const logSmtpConfig = ({ host, port, secure, auth }) => {
+  console.log(
+    `📨 Using SMTP transporter: host=${host}, port=${port}, secure=${secure}`
+  );
+  console.log("📨 SMTP auth user:", auth?.user);
+};
 
 // Create transporter with Hostinger SMTP support (or fallback to Gmail)
 const createTransporter = () => {
@@ -30,11 +220,7 @@ const createTransporter = () => {
       String(secureStr || "").toLowerCase() === "true" || port === 465;
     const rejectUnauthorized =
       String(rejectUnauthorizedStr || "true").toLowerCase() === "true";
-    console.log(
-      `📨 Using SMTP transporter: host=${host}, port=${port}, secure=${secure}`
-    );
-    console.log("📨 SMTP auth user:", user);
-    return nodemailer.createTransport({
+    const config = {
       host,
       port,
       secure,
@@ -44,7 +230,9 @@ const createTransporter = () => {
       connectionTimeout: 60000,
       greetingTimeout: 30000,
       socketTimeout: 60000,
-    });
+    };
+    logSmtpConfig(config);
+    return createTransporterFromConfig(config);
   }
 
   // Fallback to Gmail App Password configuration
@@ -68,41 +256,62 @@ const createTransporter = () => {
   });
 };
 
+const getVerifiedTransporter = async () => {
+  const smtpConfigs = buildSmtpConfigs();
+
+  for (const config of smtpConfigs) {
+    try {
+      logSmtpConfig(config);
+      const transporter = createTransporterFromConfig(config);
+      await transporter.verify();
+      console.log("✅ Email connection verified successfully");
+      return transporter;
+    } catch (verifyError) {
+      console.error(
+        `❌ Email connection verification failed for ${config.host}:${config.port}:`,
+        verifyError.message
+      );
+    }
+  }
+
+  // Fallback to Gmail App Password configuration
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+    console.error(
+      "❌ Email configuration missing: set SMTP_*/EMAIL_*/MAIL_* or EMAIL_USER/EMAIL_PASSWORD"
+    );
+    return null;
+  }
+
+  console.log("📨 Using Gmail transporter via EMAIL_USER/EMAIL_PASSWORD");
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+    connectionTimeout: 60000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
+  });
+
+  try {
+    await transporter.verify();
+    console.log("✅ Email connection verified successfully");
+    return transporter;
+  } catch (verifyError) {
+    console.error("❌ Gmail connection verification failed:", verifyError.message);
+    return null;
+  }
+};
+
 // Send OTP email with better error handling
 const sendOtpEmail = async (email, otp, purpose = "verification") => {
   try {
     console.log("generate otp : ", otp);
 
     console.log(`📧 Attempting to send OTP to: ${email}`);
-    const fromAddress =
-      process.env.SMTP_FROM ||
-      process.env.EMAIL_FROM ||
-      process.env.MAIL_FROM ||
-      process.env.SMTP_USER ||
-      process.env.EMAIL_USER ||
-      process.env.MAIL_USER;
+    const fromAddress = getFromAddress();
     console.log(`🔧 From address: ${fromAddress}`);
-
-    const transporter = createTransporter();
-
-    if (!transporter) {
-      console.error(
-        "❌ Email transporter not created - check environment variables"
-      );
-      return false;
-    }
-
-    // Verify connection first
-    try {
-      await transporter.verify();
-      console.log("✅ Email connection verified successfully");
-    } catch (verifyError) {
-      console.error(
-        "❌ Email connection verification failed:",
-        verifyError.message
-      );
-      return false;
-    }
 
     const subject =
       purpose === "password-reset"
@@ -149,22 +358,36 @@ const sendOtpEmail = async (email, otp, purpose = "verification") => {
       </div>
     `;
 
-    const fromName =
-      process.env.SMTP_FROM_NAME ||
-      process.env.EMAIL_FROM_NAME ||
-      process.env.MAIL_FROM_NAME ||
-      "Traincape LMS";
-    const fromHeader = /<.*>/.test(fromAddress)
-      ? fromAddress
-      : `${fromName} <${fromAddress}>`;
+    const textContent = `Your ${
+      purpose === "password-reset" ? "password reset" : "verification"
+    } OTP is ${otp}. It expires in 10 minutes. If you did not request this, you can ignore this email.`;
+
+    if (process.env.BREVO_API_KEY) {
+      const result = await sendBrevoApiEmail({
+        to: email,
+        subject,
+        html: htmlContent,
+        text: textContent,
+      });
+      return !!result.success;
+    }
+
+    const transporter = await getVerifiedTransporter();
+
+    if (!transporter) {
+      console.error(
+        "❌ Email transporter not created - check environment variables"
+      );
+      return false;
+    }
+
+    const fromHeader = getFromHeader();
 
     const mailOptions = {
       from: fromHeader,
       to: email,
       subject,
-      text: `Your ${
-        purpose === "password-reset" ? "password reset" : "verification"
-      } OTP is ${otp}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
+      text: textContent,
       html: htmlContent,
       envelope: {
         from: fromAddress,
@@ -217,7 +440,12 @@ const sendOtpEmail = async (email, otp, purpose = "verification") => {
 // Generic email sender
 const sendEmail = async ({ to, subject, html, text }) => {
   try {
-    const transporter = createTransporter();
+    if (process.env.BREVO_API_KEY) {
+      const result = await sendBrevoApiEmail({ to, subject, html, text });
+      return !!result.success;
+    }
+
+    const transporter = await getVerifiedTransporter();
 
     if (!transporter) {
       console.error(
@@ -226,21 +454,8 @@ const sendEmail = async ({ to, subject, html, text }) => {
       return false;
     }
 
-    const fromAddress =
-      process.env.SMTP_FROM ||
-      process.env.EMAIL_FROM ||
-      process.env.MAIL_FROM ||
-      process.env.SMTP_USER ||
-      process.env.EMAIL_USER ||
-      process.env.MAIL_USER;
-    const fromName =
-      process.env.SMTP_FROM_NAME ||
-      process.env.EMAIL_FROM_NAME ||
-      process.env.MAIL_FROM_NAME ||
-      "Traincape LMS";
-    const fromHeader = /<.*>/.test(fromAddress)
-      ? fromAddress
-      : `${fromName} <${fromAddress}>`;
+    const fromAddress = getFromAddress();
+    const fromHeader = getFromHeader();
 
     const mailOptions = {
       from: fromHeader,
@@ -269,7 +484,17 @@ const sendEmail = async ({ to, subject, html, text }) => {
 
 const sendGenericEmail = async (to, subject, htmlContent) => {
   try {
-    const transporter = createTransporter();
+    if (process.env.BREVO_API_KEY) {
+      const result = await sendBrevoApiEmail({
+        to,
+        subject,
+        html: htmlContent,
+        text: htmlContent.replace(/<[^>]*>/g, ""),
+      });
+      return !!result.success;
+    }
+
+    const transporter = await getVerifiedTransporter();
 
 
     if (!transporter) {
@@ -280,7 +505,7 @@ const sendGenericEmail = async (to, subject, htmlContent) => {
     }
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: getFromHeader(),
       to: to,
       subject: subject,
       html: htmlContent,
