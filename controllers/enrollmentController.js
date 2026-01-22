@@ -5,6 +5,65 @@ const User = require('../models/User');
 const CourseDiscussion = require('../models/CourseDiscussion');
 const PendingCourse = require('../models/PendingCourse');
 
+const sendWelcomeIfAvailable = async (courseId, userId, instructorId) => {
+  const { sendWelcomeMessage } = require('./discussionController');
+  if (!instructorId) return;
+  sendWelcomeMessage(courseId, userId, instructorId)
+    .then(() => console.log(`✅ Welcome message sent for enrollment`))
+    .catch(err => console.error('⚠️ Welcome message failed:', err));
+};
+
+const createEnrollmentForUser = async ({
+  userId,
+  courseId,
+  paymentMethod = 'free',
+  amountPaid = 0,
+  paymentId = null,
+  orderId = null
+}) => {
+  const course = await Course.findById(courseId).populate('instructor');
+  if (!course || !course.published) {
+    throw new Error('Course not found or not published');
+  }
+
+  const existingEnrollment = await Enrollment.findOne({
+    user: userId,
+    course: courseId
+  });
+
+  if (existingEnrollment) {
+    return { enrollment: existingEnrollment, created: false, course };
+  }
+
+  const enrollment = new Enrollment({
+    user: userId,
+    course: courseId,
+    enrolledAt: new Date(),
+    lastAccessedAt: new Date(),
+    paymentMethod,
+    amountPaid,
+    paymentId,
+    orderId
+  });
+
+  await enrollment.save();
+
+  const progress = new Progress({
+    enrollment: enrollment._id,
+    user: userId,
+    course: courseId
+  });
+  await progress.save();
+
+  await Course.findByIdAndUpdate(courseId, {
+    $inc: { learners: 1 }
+  });
+
+  await sendWelcomeIfAvailable(courseId, userId, course.instructor?._id);
+
+  return { enrollment, created: true, course };
+};
+
 // Enroll a student in a course
 exports.enroll = async (req, res) => {
   try {
@@ -21,6 +80,17 @@ exports.enroll = async (req, res) => {
       return res.status(404).json({ message: 'Course not found' });
     }
 
+    if (!course.published) {
+      return res.status(400).json({ message: 'Course is not published' });
+    }
+
+    if (Number(course.price || 0) > 0) {
+      return res.status(402).json({
+        message: 'Payment required to enroll in this course',
+        requiresPayment: true
+      });
+    }
+
     // Check if already enrolled
     const existingEnrollment = await Enrollment.findOne({
       user: userId,
@@ -34,41 +104,12 @@ exports.enroll = async (req, res) => {
       });
     }
 
-    // Create enrollment
-    const enrollment = new Enrollment({
-      user: userId,
-      course: courseId,
-      enrolledAt: new Date(),
-      lastAccessedAt: new Date()
+    const { enrollment } = await createEnrollmentForUser({
+      userId,
+      courseId,
+      paymentMethod: 'free',
+      amountPaid: 0
     });
-
-    await enrollment.save();
-
-    // Create progress tracking
-    const progress = new Progress({
-      enrollment: enrollment._id,
-      user: userId,
-      course: courseId
-    });
-    await progress.save();
-
-    // Update course learners count
-    await Course.findByIdAndUpdate(courseId, {
-      $inc: { learners: 1 }
-    });
-
-    // 🎉 AUTO-SEND WELCOME MESSAGE 
-    // Send personalized welcome message from instructor to newly enrolled student
-    // This creates first message in student's private chat with instructor
-    const { sendWelcomeMessage } = require('./discussionController');
-
-    if (course.instructor) {
-      // Send welcome message (non-blocking - don't wait for result)
-      // If it fails, enrollment still succeeds
-      sendWelcomeMessage(courseId, userId, course.instructor._id)
-        .then(() => console.log(`✅ Welcome message sent for enrollment ${enrollment._id}`))
-        .catch(err => console.error('⚠️ Welcome message failed:', err));
-    }
 
     // Populate course details for response
     await enrollment.populate('course');
@@ -82,6 +123,8 @@ exports.enroll = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+exports.createEnrollmentForUser = createEnrollmentForUser;
 
 // Get all enrollments for a user
 exports.getMyEnrollments = async (req, res) => {

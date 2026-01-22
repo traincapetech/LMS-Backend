@@ -107,6 +107,7 @@ app.use(
 app.use("/api/courses", require("./routes/courseRoutes"));
 app.use("/api/pending-courses", require("./routes/pendingCourseRoutes"));
 app.use("/api/cart", require("./routes/cartRoutes"));
+app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/coupons", require("./routes/couponRoutes"));
 app.use(
   "/api/quizzes/:quizId/questions",
@@ -136,15 +137,19 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use("*", (req, res) => {
-  console.log("❌ 404 - Route not found:", {
-    method: req.method,
-    url: req.originalUrl,
-    path: req.path,
-    headers: {
-      origin: req.headers.origin,
-      'content-type': req.headers['content-type'],
-    },
-  });
+  const isRootProbe =
+    req.path === "/" && (req.method === "GET" || req.method === "HEAD");
+  if (!isRootProbe) {
+    console.log("❌ 404 - Route not found:", {
+      method: req.method,
+      url: req.originalUrl,
+      path: req.path,
+      headers: {
+        origin: req.headers.origin,
+        "content-type": req.headers["content-type"],
+      },
+    });
+  }
   res.status(404).json({
     success: false,
     message: "Route not found",

@@ -247,6 +247,7 @@ exports.verifyEmail = async (req, res) => {
 
     user.isVerified = true;
     user.verificationOtp = undefined; // Clear OTP after usage
+    user.verificationOtpExpires = undefined;
     await user.save();
 
     return res
@@ -254,6 +255,44 @@ exports.verifyEmail = async (req, res) => {
       .json({ message: "Email verified successfully. You can now login." });
   } catch (err) {
     console.error(err);
+    return res.status(500).json({ message: "Server error." });
+  }
+};
+
+exports.resendVerificationOtp = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required." });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (user.isVerified) {
+      return res
+        .status(200)
+        .json({ message: "Email already verified. Please login." });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationOtp = otp;
+    user.verificationOtpExpires = Date.now() + 10 * 60 * 1000;
+    await user.save();
+
+    const emailSent = await sendOtpEmail(email, otp, "email-verification");
+    if (!emailSent) {
+      return res
+        .status(500)
+        .json({ message: "Failed to send verification OTP." });
+    }
+
+    return res.status(200).json({ message: "Verification OTP sent." });
+  } catch (err) {
+    console.error("resendVerificationOtp error:", err);
     return res.status(500).json({ message: "Server error." });
   }
 };

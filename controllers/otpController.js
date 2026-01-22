@@ -1,7 +1,10 @@
 const Instructor = require("../models/Instructor");
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const { sendOtpEmail } = require("../utils/emailService");
+
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -80,7 +83,15 @@ const verifyOtp = async (req, res) => {
       await user.save();
     }
 
-    return res.status(200).json({ message: "OTP verified successfully", user: { _id: user._id, name: user.name, email: user.email, role: user.role } });
+    const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    return res.status(200).json({
+      message: "OTP verified successfully",
+      token,
+      user: { _id: user._id, name: user.name, email: user.email, role: user.role },
+    });
   } catch (error) {
     console.error("❌ Error verifying OTP:", error.message);
     return res.status(500).json({ message: "Server error" });

@@ -44,9 +44,14 @@ const enrollmentSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  orderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order',
+    default: null
+  },
   paymentMethod: {
     type: String,
-    enum: ['stripe', 'paypal', 'razorpay', 'upi', 'card', 'free'],
+    enum: ['stripe', 'paypal', 'razorpay', 'upi', 'card', 'free', 'manual'],
     default: 'free'
   },
   amountPaid: {
