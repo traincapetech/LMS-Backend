@@ -5,6 +5,7 @@ const orderItemSchema = new mongoose.Schema(
     course: { type: mongoose.Schema.Types.ObjectId, ref: "Course", required: true },
     title: { type: String, default: "" },
     price: { type: Number, default: 0 },
+    basePrice: { type: Number, default: 0 },
     quantity: { type: Number, default: 1 },
   },
   { _id: false }
@@ -15,10 +16,13 @@ const orderSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     items: [orderItemSchema],
     currency: { type: String, default: "INR" },
+    baseCurrency: { type: String, default: "INR" },
     couponCode: { type: String, default: null },
     discountPercentage: { type: Number, default: 0 },
     subtotal: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
+    baseSubtotal: { type: Number, default: 0 },
+    baseTotal: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["pending", "paid", "failed", "cancelled"],

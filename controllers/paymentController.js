@@ -3,6 +3,7 @@ const Order = require("../models/Order");
 const Enrollment = require("../models/Enrollment");
 const Course = require("../models/Course");
 const { createEnrollmentForUser } = require("./enrollmentController");
+const { getRate } = require("../utils/exchangeRate");
 
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecret ? require("stripe")(stripeSecret) : null;
@@ -57,7 +58,16 @@ const fulfillOrder = async (order) => {
   return enrollments;
 };
 
-const createOrderFromCart = async ({ userId, paymentMethod = "manual" }) => {
+const normalizeCurrency = (value) =>
+  String(value || "INR").toUpperCase();
+
+const SUPPORTED_CURRENCIES = new Set(["INR", "USD", "EUR"]);
+
+const createOrderFromCart = async ({
+  userId,
+  paymentMethod = "manual",
+  currency = "INR",
+}) => {
   const cart = await Cart.findOne({ user: userId }).populate("items.course");
   if (!cart || cart.items.length === 0) {
     return { error: { status: 400, message: "Cart is empty" } };
@@ -100,21 +110,49 @@ const createOrderFromCart = async ({ userId, paymentMethod = "manual" }) => {
     };
   }
 
-  const { subtotal, total } = normalizeTotals(cart);
-  const orderItems = cart.items.map((item) => ({
-    course: item.course._id,
-    title: item.course.title || item.course.landingTitle || "Course",
-    price: Number(item.course.price || 0),
-    quantity: item.quantity || 1,
-  }));
+  const baseCurrency = "INR";
+  const resolvedCurrency = normalizeCurrency(currency);
+  if (!SUPPORTED_CURRENCIES.has(resolvedCurrency)) {
+    return {
+      error: {
+        status: 400,
+        message: `Unsupported currency: ${resolvedCurrency}`,
+      },
+    };
+  }
+
+  const { subtotal: baseSubtotal, total: baseTotal } = normalizeTotals(cart);
+  let rate = 1;
+  if (resolvedCurrency !== baseCurrency) {
+    rate = await getRate(baseCurrency, resolvedCurrency);
+  }
+
+  const subtotal = Number((baseSubtotal * rate).toFixed(2));
+  const total = Number((baseTotal * rate).toFixed(2));
+
+  const orderItems = cart.items.map((item) => {
+    const basePrice = Number(item.course.price || 0);
+    const price = Number((basePrice * rate).toFixed(2));
+    return {
+      course: item.course._id,
+      title: item.course.title || item.course.landingTitle || "Course",
+      price,
+      quantity: item.quantity || 1,
+      basePrice,
+    };
+  });
 
   const order = await Order.create({
     user: userId,
     items: orderItems,
+    currency: resolvedCurrency,
+    baseCurrency,
     couponCode: cart.couponCode || null,
     discountPercentage: cart.discountPercentage || 0,
     subtotal,
     total,
+    baseSubtotal,
+    baseTotal,
     paymentMethod,
     source: "cart",
     status: "pending",
@@ -138,10 +176,12 @@ exports.checkoutCart = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const paymentMethod = req.body?.paymentMethod || "manual";
+    const currency = req.body?.currency || "INR";
 
     const { order, cart, error } = await createOrderFromCart({
       userId,
       paymentMethod,
+      currency,
     });
     if (error) {
       return res.status(error.status).json(error);
@@ -180,9 +220,11 @@ exports.createStripeSession = async (req, res) => {
     }
 
     const userId = req.user._id || req.user.id;
+    const currency = req.body?.currency || "INR";
     const { order, error } = await createOrderFromCart({
       userId,
       paymentMethod: "stripe",
+      currency,
     });
     if (error) {
       return res.status(error.status).json(error);

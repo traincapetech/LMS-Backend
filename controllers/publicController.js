@@ -2,6 +2,7 @@ const Course = require("../models/Course");
 const User = require("../models/User");
 const { sendGenericEmail } = require("../utils/emailService");
 const { uploadToBucket, deleteFromBucket } = require("../config/r2");
+const { getRates } = require("../utils/exchangeRate");
 
 exports.getHomeStats = async (req, res) => {
   try {
@@ -169,5 +170,17 @@ exports.removeAvatar = async (req, res) => {
   } catch (err) {
     console.error("Error removing avatar:", err);
     res.status(500).json({ message: "Server error removing avatar." });
+  }
+};
+
+exports.getExchangeRates = async (req, res) => {
+  try {
+    const base = (req.query.base || "INR").toUpperCase();
+    const symbols = (req.query.symbols || "USD,EUR").toUpperCase();
+    const rates = await getRates(base, symbols);
+    res.json({ base, rates });
+  } catch (err) {
+    console.error("Exchange rate error:", err.message);
+    res.status(500).json({ message: "Failed to fetch exchange rates" });
   }
 };

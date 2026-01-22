@@ -7,6 +7,7 @@ const publicController = require("../controllers/publicController");
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get("/stats", publicController.getHomeStats);
+router.get("/rates", publicController.getExchangeRates);
 router.post("/contact", publicController.submitContactForm);
 router.post(
   "/upload-avatar",
