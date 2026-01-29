@@ -82,11 +82,21 @@ app.use(
   cors({
     origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Last-Check"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "X-Last-Check",
+    ],
     credentials: true,
     optionsSuccessStatus: 200,
   })
 );
+
+// Stripe webhook endpoint - must be BEFORE express.json() middleware
+// because Stripe requires the raw body for signature verification
+const paymentController = require("./controllers/paymentController");
+app.post("/webhook", express.raw({ type: "application/json" }), paymentController.webhook);
 
 app.use(express.json({ limit: "5mb" }));
 
@@ -105,11 +115,13 @@ app.use(
   require("./routes/instructorRequestRoutes")
 );
 app.use("/api/courses", require("./routes/courseRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/pending-courses", require("./routes/pendingCourseRoutes"));
 app.use("/api/cart", require("./routes/cartRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/coupons", require("./routes/couponRoutes"));
 app.use("/api/admin/courses", require("./routes/adminCourseRoutes"));
+app.use("/api/admin/instructors", require("./routes/adminInstructorRoutes"));
 app.use(
   "/api/quizzes/:quizId/questions",
   require("./routes/quizQuestion&Option")
@@ -125,6 +137,7 @@ app.use("/api/reviews", require("./routes/reviewRoutes"));
 app.use("/api/questions", require("./routes/questionRoutes"));
 app.use("/api/notes", require("./routes/noteRoutes"));
 app.use("/api/certificate", require("./routes/certificateRoutes"));
+app.use("/api/payment", require("./routes/paymentRoutes"));
 
 // Global error handler
 app.use((err, req, res, next) => {

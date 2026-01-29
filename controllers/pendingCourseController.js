@@ -1,6 +1,7 @@
 const PendingCourse = require("../models/PendingCourse");
 const Course = require("../models/Course");
 const Video = require("../models/Video");
+const Notification = require("../models/Notification");
 
 // POST /api/pending-courses/apply
 // exports.apply = async (req, res) => {
@@ -438,6 +439,19 @@ exports.approve = async (req, res) => {
     pending.adminMessage = req.body.adminMessage || "";
     await pending.save(); // ✔ Save AFTER setting courseId
 
+    // Notify Instructor
+    await Notification.create({
+      recipient: instructorId,
+      type: 'course_approved',
+      title: '🎉 Course Approved!',
+      message: `Your course "${pending.landingTitle}" has been approved and is now live!`,
+      metadata: {
+        courseId: course._id,
+        pendingCourseId: pending._id,
+        actionUrl: `/course/${course._id}`
+      }
+    });
+
     res.json({
       success: true,
       message: "Course approved & published successfully",
@@ -499,6 +513,19 @@ exports.reject = async (req, res) => {
       { new: true }
     );
     if (!course) return res.status(404).json({ message: "Course not found" });
+
+    // Notify Instructor
+    await Notification.create({
+      recipient: course.instructor,
+      type: 'course_rejected',
+      title: 'Course Requires Changes',
+      message: `Your course "${course.landingTitle}" needs revisions. Admin message: ${req.body.adminMessage || 'No message provided'}`,
+      metadata: {
+        pendingCourseId: course._id,
+        actionUrl: `/instructor/edit/${course._id}`
+      }
+    });
+
     res.json({ message: "Course rejected", course });
   } catch (err) {
     res

@@ -8,6 +8,9 @@ const Question = require("../models/Question");
 const Note = require("../models/Note");
 const CourseDiscussion = require("../models/CourseDiscussion");
 const Video = require("../models/Video");
+const User = require("../models/User");
+const Instructor = require("../models/Instructor");
+const InstructorRequest = require("../models/InstructorRequest");
 const { deleteFromBucket } = require("../config/r2");
 
 const bucketMap = [
@@ -102,6 +105,17 @@ const deletePendingAndRelated = async (pendingId, deletePublished = true) => {
   await PendingCourse.findByIdAndDelete(pending._id);
 };
 
+const deleteUserData = async (userId) => {
+  await Enrollment.deleteMany({ user: userId });
+  await Progress.deleteMany({ user: userId });
+  await Review.deleteMany({ user: userId });
+  await Question.deleteMany({ author: userId });
+  await Note.deleteMany({ user: userId });
+  await CourseDiscussion.deleteMany({
+    $or: [{ sender: userId }, { recipient: userId }],
+  });
+};
+
 exports.deletePendingCourse = async (req, res) => {
   try {
     const { pendingId } = req.params;
@@ -143,6 +157,42 @@ exports.deleteAllCourses = async (req, res) => {
     res.json({ success: true, message: "All courses deleted" });
   } catch (error) {
     console.error("Admin delete all courses error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+exports.deleteInstructor = async (req, res) => {
+  try {
+    const { instructorId } = req.params;
+
+    const user = await User.findById(instructorId);
+    if (!user) {
+      return res.status(404).json({ message: "Instructor not found" });
+    }
+
+    const courses = await Course.find({ instructor: instructorId })
+      .select("_id")
+      .lean();
+    for (const course of courses) {
+      await deleteCourseAndRelated(course._id);
+    }
+
+    const pendingCourses = await PendingCourse.find({ instructor: instructorId })
+      .select("_id")
+      .lean();
+    for (const pending of pendingCourses) {
+      await deletePendingAndRelated(pending._id, false);
+    }
+
+    await deleteUserData(instructorId);
+
+    await Instructor.deleteMany({ email: user.email });
+    await InstructorRequest.deleteMany({ email: user.email });
+    await User.findByIdAndDelete(instructorId);
+
+    res.json({ success: true, message: "Instructor deleted" });
+  } catch (error) {
+    console.error("Admin delete instructor error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

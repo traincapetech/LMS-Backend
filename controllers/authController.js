@@ -233,8 +233,8 @@ exports.verifyEmail = async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
 
-    console.log("initial otp",user)
-    
+    console.log("initial otp", user)
+
     if (user.isVerified) {
       return res
         .status(200)
@@ -293,6 +293,63 @@ exports.resendVerificationOtp = async (req, res) => {
     return res.status(200).json({ message: "Verification OTP sent." });
   } catch (err) {
     console.error("resendVerificationOtp error:", err);
+    return res.status(500).json({ message: "Server error." });
+  }
+};
+
+// Change password (requires auth – user from requireAuth middleware)
+exports.changePassword = async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  const user = req.user;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return res.status(400).json({ message: "All fields are required." });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ message: "New passwords do not match." });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: "Password must be at least 6 characters." });
+  }
+
+  try {
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Current password is incorrect." });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    return res.status(200).json({ message: "Password changed successfully." });
+  } catch (err) {
+    console.error("changePassword error:", err);
+    return res.status(500).json({ message: "Server error." });
+  }
+};
+
+// Close account (requires auth – user from requireAuth middleware)
+exports.closeAccount = async (req, res) => {
+  const { password } = req.body;
+  const user = req.user;
+
+  if (!password) {
+    return res.status(400).json({ message: "Password is required." });
+  }
+
+  try {
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Incorrect password." });
+    }
+
+    await User.findByIdAndDelete(user._id);
+
+    return res.status(200).json({ message: "Account closed successfully." });
+  } catch (err) {
+    console.error("closeAccount error:", err);
     return res.status(500).json({ message: "Server error." });
   }
 };
