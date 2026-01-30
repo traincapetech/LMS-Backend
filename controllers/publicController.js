@@ -2,18 +2,23 @@ const Course = require("../models/Course");
 const User = require("../models/User");
 const { sendGenericEmail } = require("../utils/emailService");
 const { uploadToBucket, deleteFromBucket } = require("../config/r2");
+const Enrollment = require("../models/Enrollment");
 const { getRates } = require("../utils/exchangeRate");
 
 exports.getHomeStats = async (req, res) => {
   try {
     const students = await User.countDocuments({ role: "student" });
     const courses = await Course.countDocuments({ published: true });
+    const learners = await Course.countDocuments({ learners: { $ne: null } });
     const instructors = await User.countDocuments({ role: "instructor" });
+    const enrollments = await Enrollment.countDocuments({ enrolledAt: { $ne: null } });
 
     res.json({
       students,
       courses,
+      learners,
       instructors,
+      enrollments,
     });
   } catch (err) {
     console.error("Error fetching home stats:", err);
