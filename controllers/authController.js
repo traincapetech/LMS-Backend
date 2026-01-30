@@ -297,24 +297,20 @@ exports.resendVerificationOtp = async (req, res) => {
   }
 };
 
-// Change password (requires auth – user from requireAuth middleware)
+// Change Password (for logged-in users)
 exports.changePassword = async (req, res) => {
-  const { currentPassword, newPassword, confirmPassword } = req.body;
-  const user = req.user;
+  const { email, currentPassword, newPassword } = req.body;
 
-  if (!currentPassword || !newPassword || !confirmPassword) {
+  if (!email || !currentPassword || !newPassword) {
     return res.status(400).json({ message: "All fields are required." });
   }
 
-  if (newPassword !== confirmPassword) {
-    return res.status(400).json({ message: "New passwords do not match." });
-  }
-
-  if (newPassword.length < 6) {
-    return res.status(400).json({ message: "Password must be at least 6 characters." });
-  }
-
   try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Current password is incorrect." });
@@ -330,19 +326,23 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// Close account (requires auth – user from requireAuth middleware)
+// Close Account
 exports.closeAccount = async (req, res) => {
-  const { password } = req.body;
-  const user = req.user;
+  const { email, password } = req.body;
 
-  if (!password) {
-    return res.status(400).json({ message: "Password is required." });
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required." });
   }
 
   try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: "Incorrect password." });
+      return res.status(400).json({ message: "Password is incorrect." });
     }
 
     await User.findByIdAndDelete(user._id);
